@@ -23,14 +23,17 @@ Thumbs.db
 # Maven/Java (if using Maven)
 target/
 dependency-reduced-pom.xml
-.mvn/
 
 # Database (if sensitive)
-database_schema.sql
+# database_schema.sql
 
 # Lock files
-pubspec.lock
+# pubspec.lock
 
 # Environment
 .env
 .env.local
+
+# Android
+android/app/build/
+android/.gradle/
