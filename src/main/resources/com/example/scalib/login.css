@@ -1,0 +1,381 @@
+.root {
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+    -fx-background-color: #f2f7f4;
+}
+
+.branding-panel {
+    -fx-background-color: linear-gradient(to bottom right, #1f5b4a, #174336);
+}
+
+.logo-label {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+    -fx-letter-spacing: 1px;
+}
+
+.branding-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 36px;
+    -fx-font-weight: 800;
+}
+
+.branding-subtitle {
+    -fx-text-fill: #d5eadf;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 3px;
+}
+
+.feature-item {
+    -fx-text-fill: #edf7f1;
+    -fx-font-size: 14px;
+}
+
+.branding-footer {
+    -fx-text-fill: #a8cabd;
+    -fx-font-size: 12px;
+}
+
+.form-area {
+    -fx-background-color: #f6fbf8;
+}
+
+.form-heading {
+    -fx-text-fill: #1d2433;
+    -fx-font-size: 30px;
+    -fx-font-weight: 700;
+}
+
+.form-subheading {
+    -fx-text-fill: #5f7269;
+    -fx-font-size: 14px;
+}
+
+.input-label {
+    -fx-text-fill: #273043;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+}
+
+.input-field {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 10px;
+    -fx-border-color: #d4e1db;
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-padding: 10px 12px;
+    -fx-font-size: 13px;
+}
+
+.input-field:focused {
+    -fx-border-color: #2f7d64;
+    -fx-background-insets: 0;
+}
+
+.remember-checkbox {
+    -fx-text-fill: #5f7269;
+    -fx-font-size: 12px;
+}
+
+.link-muted {
+    -fx-text-fill: #2f7d64;
+    -fx-font-size: 12px;
+    -fx-border-color: transparent;
+}
+
+.primary-button {
+    -fx-background-color: #2f7d64;
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 10px;
+    -fx-padding: 11px 14px;
+}
+
+.primary-button:hover {
+    -fx-background-color: #286c57;
+}
+
+.secondary-button {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #2f3950;
+    -fx-border-color: #d4e1db;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-font-size: 13px;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #edf6f1;
+}
+
+.feedback-label {
+    -fx-text-fill: #2f7d64;
+    -fx-font-size: 12px;
+}
+
+.divider-text {
+    -fx-text-fill: #99a3b7;
+    -fx-font-size: 11px;
+}
+
+.small-muted {
+    -fx-text-fill: #63776e;
+    -fx-font-size: 12px;
+}
+
+.link-primary {
+    -fx-text-fill: #2f7d64;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-border-color: transparent;
+}
+
+.loading-overlay {
+    -fx-background-color: transparent;
+}
+
+.loading-content {
+    -fx-padding: 4px 6px;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.loading-spinner {
+    -fx-progress-color: #2f7d64;
+}
+
+.loading-gif {
+    -fx-opacity: 0.95;
+}
+
+.loading-text {
+    -fx-text-fill: #49665c;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-effect: dropshadow(gaussian, rgba(255, 255, 255, 0.6), 3, 0.2, 0, 1);
+}
+
+.input-field:disabled,
+.remember-checkbox:disabled,
+.link-muted:disabled,
+.link-primary:disabled,
+.secondary-button:disabled,
+.primary-button:disabled {
+    -fx-opacity: 0.55;
+}
+
+.primary-button:disabled {
+    -fx-background-color: #9aac9f;
+    -fx-text-fill: #edf2ef;
+}
+
+.input-field:disabled {
+    -fx-background-color: #eff4f1;
+    -fx-border-color: #c9d7d0;
+    -fx-text-fill: #7a8a83;
+}
+
+/* Dashboard */
+.dashboard-root {
+    -fx-background-color: linear-gradient(to bottom right, #f7fcf9, #eff7f2);
+}
+
+.dashboard-sidebar {
+    -fx-background-color: #fbfefd;
+    -fx-border-color: #e1ece6;
+    -fx-border-width: 0 1 0 0;
+    -fx-spacing: 14px;
+}
+
+.sidebar-logo-icon {
+    -fx-background-color: linear-gradient(to bottom right, #2f7d64, #1f5b4a);
+    -fx-background-radius: 11px;
+    -fx-effect: dropshadow(gaussian, rgba(24, 72, 56, 0.25), 10, 0.2, 0, 2);
+}
+
+.sidebar-logo-icon-text {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+}
+
+.sidebar-brand-title {
+    -fx-text-fill: #1c2b2e;
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-padding: 0;
+}
+
+.sidebar-brand-subtitle {
+    -fx-text-fill: #789188;
+    -fx-font-size: 10px;
+    -fx-padding: -2 0 0 0;
+}
+
+.user-chip {
+    -fx-background-color: linear-gradient(to bottom right, #f1faf5, #ecf6f1);
+    -fx-border-color: #d8e7df;
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-padding: 10px 12px;
+}
+
+.user-avatar {
+    -fx-background-color: linear-gradient(to bottom right, #2f7d64, #1f5b4a);
+    -fx-background-radius: 999px;
+}
+
+.user-avatar-text {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.user-name-label {
+    -fx-text-fill: #223236;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-wrap-text: true;
+}
+
+.user-role-label {
+    -fx-text-fill: #2f7d64;
+    -fx-font-size: 11px;
+}
+
+.sidebar-section-label {
+    -fx-text-fill: #95a9a1;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-padding: 4px 0 0 3px;
+}
+
+.sidebar-nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #587066;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-alignment: CENTER_LEFT;
+    -fx-padding: 11px 12px;
+    -fx-background-radius: 11px;
+    -fx-border-radius: 11px;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.sidebar-nav-button:hover {
+    -fx-background-color: #eef7f2;
+    -fx-text-fill: #1f5b4a;
+}
+
+.sidebar-nav-button-active {
+    -fx-background-color: linear-gradient(to right, #2f7d64, #276d58);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(24, 72, 56, 0.24), 10, 0.2, 0, 2);
+}
+
+.sidebar-nav-button-active:hover {
+    -fx-background-color: linear-gradient(to right, #2d775f, #255f4d);
+    -fx-text-fill: #ffffff;
+}
+
+.sidebar-nav-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.sidebar-nav-button-active:focused {
+    -fx-background-color: linear-gradient(to right, #2f7d64, #276d58);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(24, 72, 56, 0.24), 10, 0.2, 0, 2);
+}
+
+.sidebar-logout-button {
+    -fx-background-color: #f7fbf9;
+    -fx-text-fill: #5a7068;
+    -fx-font-size: 12px;
+    -fx-border-color: #d3e1da;
+    -fx-border-radius: 11px;
+    -fx-background-radius: 11px;
+    -fx-padding: 10px 12px;
+    -fx-alignment: CENTER_LEFT;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+}
+
+.sidebar-logout-button:hover {
+    -fx-background-color: #edf6f1;
+    -fx-text-fill: #1f5b4a;
+}
+
+.dashboard-main {
+    -fx-background-color: transparent;
+}
+
+.dashboard-topbar {
+    -fx-background-color: linear-gradient(to right, #0f2f24, #1b4f3e 58%, #23614d);
+    -fx-border-color: transparent transparent #184636 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.dashboard-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+    -fx-letter-spacing: 0.3px;
+}
+
+.topbar-user-label {
+    -fx-text-fill: #e2f3eb;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.topbar-logout-button {
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 999px;
+    -fx-padding: 8px 14px;
+    -fx-cursor: hand;
+}
+
+.topbar-logout-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.24);
+}
+
+.dashboard-content {
+    -fx-background-color: transparent;
+}
+
+.dashboard-welcome-label {
+    -fx-text-fill: #192224;
+    -fx-font-size: 35px;
+    -fx-font-weight: 800;
+}
+
+.dashboard-subtext-label {
+    -fx-text-fill: #5f7269;
+    -fx-font-size: 14px;
+    -fx-max-width: 560px;
+    -fx-line-spacing: 2px;
+}
+
+.dashboard-footnote-label {
+    -fx-text-fill: #87a095;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}

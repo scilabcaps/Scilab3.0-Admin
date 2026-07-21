@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.String?>
+<?import java.net.URL?>
+<?import javafx.collections.FXCollections?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.example.scalib.controller.RoomMonitorController"
+      spacing="0" styleClass="room-monitor-root">
+    <stylesheets>
+        <URL value="@tableDesign.css"/>
+    </stylesheets>
+
+    <VBox VBox.vgrow="ALWAYS" styleClass="room-monitor-content">
+        <VBox styleClass="room-monitor-table">
+            <GridPane styleClass="room-monitor-header">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="26"/>
+                    <ColumnConstraints percentWidth="13"/>
+                    <ColumnConstraints percentWidth="16"/>
+                    <ColumnConstraints percentWidth="24"/>
+                    <ColumnConstraints percentWidth="21"/>
+                </columnConstraints>
+                <Label text="Room Name" styleClass="room-th" GridPane.columnIndex="0"/>
+                <Label text="Capacity" styleClass="room-th" GridPane.columnIndex="1"/>
+                <Label text="Date" styleClass="room-th" GridPane.columnIndex="2"/>
+                <Label text="Time" styleClass="room-th" GridPane.columnIndex="3"/>
+                <Label text="Status" styleClass="room-th" GridPane.columnIndex="4"/>
+            </GridPane>
+
+            <GridPane styleClass="room-monitor-body">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="26"/>
+                    <ColumnConstraints percentWidth="13"/>
+                    <ColumnConstraints percentWidth="16"/>
+                    <ColumnConstraints percentWidth="24"/>
+                    <ColumnConstraints percentWidth="21"/>
+                </columnConstraints>
+
+                <Label text="Biology Laboratory" styleClass="room-td" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                <Label text="30" styleClass="room-td" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                <Label text="-" styleClass="room-td" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                <Label text="-" styleClass="room-td" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                <HBox alignment="CENTER_LEFT" styleClass="room-td" GridPane.columnIndex="4" GridPane.rowIndex="0">
+                    <ComboBox value="Occupied">
+                        <styleClass>
+                            <String fx:value="room-status-select"/>
+                            <String fx:value="status-occupied"/>
+                        </styleClass>
+                        <items>
+                            <FXCollections fx:factory="observableArrayList">
+                                <String fx:value="Occupied"/>
+                                <String fx:value="Available"/>
+                            </FXCollections>
+                        </items>
+                    </ComboBox>
+                </HBox>
+
+                <Label text="Chemistry Laboratory" GridPane.columnIndex="0" GridPane.rowIndex="1">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="30" GridPane.columnIndex="1" GridPane.rowIndex="1">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="2026-05-06" GridPane.columnIndex="2" GridPane.rowIndex="1">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="21:57:00 - 21:57:00" GridPane.columnIndex="3" GridPane.rowIndex="1">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <HBox alignment="CENTER_LEFT" GridPane.columnIndex="4" GridPane.rowIndex="1">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                    <ComboBox value="Occupied">
+                        <styleClass>
+                            <String fx:value="room-status-select"/>
+                            <String fx:value="status-occupied"/>
+                        </styleClass>
+                        <items>
+                            <FXCollections fx:factory="observableArrayList">
+                                <String fx:value="Occupied"/>
+                                <String fx:value="Available"/>
+                            </FXCollections>
+                        </items>
+                    </ComboBox>
+                </HBox>
+
+                <Label text="Lecture Room" styleClass="room-td" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                <Label text="50" styleClass="room-td" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+                <Label text="-" styleClass="room-td" GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+                <Label text="-" styleClass="room-td" GridPane.columnIndex="3" GridPane.rowIndex="2"/>
+                <HBox alignment="CENTER_LEFT" styleClass="room-td" GridPane.columnIndex="4" GridPane.rowIndex="2">
+                    <ComboBox value="Available">
+                        <styleClass>
+                            <String fx:value="room-status-select"/>
+                            <String fx:value="status-available"/>
+                        </styleClass>
+                        <items>
+                            <FXCollections fx:factory="observableArrayList">
+                                <String fx:value="Occupied"/>
+                                <String fx:value="Available"/>
+                            </FXCollections>
+                        </items>
+                    </ComboBox>
+                </HBox>
+
+                <Label text="Physics Laboratory" GridPane.columnIndex="0" GridPane.rowIndex="3">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="30" GridPane.columnIndex="1" GridPane.rowIndex="3">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="-" GridPane.columnIndex="2" GridPane.rowIndex="3">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <Label text="-" GridPane.columnIndex="3" GridPane.rowIndex="3">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                </Label>
+                <HBox alignment="CENTER_LEFT" GridPane.columnIndex="4" GridPane.rowIndex="3">
+                    <styleClass><String fx:value="room-td"/><String fx:value="room-td-alt"/></styleClass>
+                    <ComboBox value="Available">
+                        <styleClass>
+                            <String fx:value="room-status-select"/>
+                            <String fx:value="status-available"/>
+                        </styleClass>
+                        <items>
+                            <FXCollections fx:factory="observableArrayList">
+                                <String fx:value="Occupied"/>
+                                <String fx:value="Available"/>
+                            </FXCollections>
+                        </items>
+                    </ComboBox>
+                </HBox>
+            </GridPane>
+        </VBox>
+
+        <Region VBox.vgrow="ALWAYS"/>
+        <Label fx:id="userLabel" styleClass="room-monitor-footer-label" text="User:"/>
+    </VBox>
+</VBox>

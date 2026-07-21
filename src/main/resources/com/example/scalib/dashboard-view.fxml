@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane styleClass="dashboard-root" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.scalib.controller.DashboardController">
+    <children>
+        <BorderPane AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <left>
+                <VBox minWidth="245.0" prefWidth="245.0" styleClass="dashboard-sidebar">
+                    <padding>
+                        <Insets bottom="18.0" left="16.0" right="16.0" top="18.0" />
+                    </padding>
+
+                    <HBox alignment="CENTER_LEFT" spacing="12.0">
+                        <StackPane prefHeight="30.0" prefWidth="30.0" styleClass="sidebar-logo-icon">
+                            <Label styleClass="sidebar-logo-icon-text" text="S" />
+                        </StackPane>
+                        <VBox spacing="2.0">
+                            <Label styleClass="sidebar-brand-title" text="SciLabReserve" />
+                            <Label styleClass="sidebar-brand-subtitle" text="Lab Management" />
+                        </VBox>
+                    </HBox>
+
+                    <HBox alignment="CENTER_LEFT" spacing="12.0" styleClass="user-chip">
+                        <StackPane prefHeight="34.0" prefWidth="34.0" styleClass="user-avatar">
+                            <Label styleClass="user-avatar-text" text="AA" />
+                        </StackPane>
+                        <VBox spacing="2.0">
+                            <Label fx:id="userNameLabel" styleClass="user-name-label" text="admin admin" />
+                            <Label styleClass="user-role-label" text="Admin" />
+                        </VBox>
+                    </HBox>
+
+                    <VBox spacing="8.0">
+                        <Label styleClass="sidebar-section-label" text="NAVIGATION" />
+                        <Button fx:id="dashboardNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Dashboard" userData="DASHBOARD" />
+                        <Button fx:id="reservationHistoryNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Reservation History" userData="RESERVATION_HISTORY" />
+                        <Button fx:id="professorApprovalsNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Professor Approvals" userData="PROFESSOR_APPROVALS" />
+                        <Button fx:id="studentApprovalsNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Student Approvals" userData="STUDENT_APPROVALS" />
+<!--                        <Button fx:id="ongoingReservationsNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Ongoing Reservations" userData="ONGOING_RESERVATIONS" />-->
+                        <Button fx:id="roomMonitorNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Room Monitor" userData="ROOM_MONITOR" />
+                        <Button fx:id="inventoryNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Inventory" userData="INVENTORY" />
+                        <Button fx:id="manageProfessorsNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Manage Professors" userData="MANAGE_PROFESSORS" />
+                        <Button fx:id="unreturnedItemsNavButton" maxWidth="1.7976931348623157E308" onAction="#onNavClick" styleClass="sidebar-nav-button" text="Unreturned Items" userData="UNRETURNED_ITEMS" />
+                    </VBox>
+
+                    <Region VBox.vgrow="ALWAYS" />
+                    <Button maxWidth="1.7976931348623157E308" onAction="#onLogoutClick" styleClass="sidebar-logout-button" text="Log out" />
+                </VBox>
+            </left>
+
+            <center>
+                <VBox spacing="0.0" styleClass="dashboard-main">
+                    <HBox alignment="CENTER_LEFT" minHeight="72.0" prefHeight="72.0" styleClass="dashboard-topbar">
+                        <padding>
+                            <Insets left="26.0" right="26.0" />
+                        </padding>
+                        <Label fx:id="topbarTitleLabel" styleClass="dashboard-title" text="Admin Dashboard" />
+                        <Region HBox.hgrow="ALWAYS" />
+                    </HBox>
+
+                    <StackPane fx:id="contentContainer" VBox.vgrow="ALWAYS">
+                        <VBox spacing="12.0" styleClass="dashboard-content">
+                            <padding>
+                                <Insets bottom="28.0" left="30.0" right="30.0" top="28.0" />
+                            </padding>
+                            <Label fx:id="welcomeLabel" styleClass="dashboard-welcome-label" text="Welcome, Administrator!" />
+                            <Label styleClass="dashboard-subtext-label" text="Select a section from the left navigation to start managing reservations, approvals, and inventory." wrapText="true" />
+                            <Region VBox.vgrow="ALWAYS" />
+                            <Label styleClass="dashboard-footnote-label" text="System ready. Use the side panel to continue." />
+                        </VBox>
+                    </StackPane>
+                </VBox>
+            </center>
+        </BorderPane>
+    </children>
+</AnchorPane>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.scalib.controller.LoginController">
+    <children>
+        <HBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+
+            <VBox alignment="TOP_LEFT" minWidth="320.0" prefWidth="420.0" maxWidth="520.0" spacing="20.0" styleClass="branding-panel">
+                <padding>
+                    <Insets bottom="60.0" left="46.0" right="46.0" top="60.0" />
+                </padding>
+                <Label styleClass="logo-label" text="SCILAB" />
+                <Label styleClass="branding-title" text="Welcome back" />
+                <Label styleClass="branding-subtitle" text="Manage records, approvals and inventory." wrapText="true" />
+
+                <VBox spacing="14.0">
+                    <Label styleClass="feature-item" text="Fast member and equipment lookup" />
+                    <Label styleClass="feature-item" text="Action logs and reporting" />
+                </VBox>
+
+                <StackPane VBox.vgrow="ALWAYS" />
+                <Label styleClass="branding-footer" text="Scalib Suite v1.0" />
+            </VBox>
+
+            <VBox alignment="CENTER" styleClass="form-area" HBox.hgrow="ALWAYS">
+                <padding>
+                    <Insets bottom="40.0" left="80.0" right="80.0" top="40.0" />
+                </padding>
+                <StackPane VBox.vgrow="ALWAYS" />
+
+                <StackPane fx:id="loadingContainer" maxWidth="430.0">
+                    <VBox maxWidth="430.0" spacing="16.0">
+                        <Label styleClass="form-heading" text="Sign in to your account" />
+                        <Label styleClass="form-subheading" text="Use your email and password to continue to the dashboard." wrapText="true" />
+
+                        <VBox spacing="8.0">
+                            <Label styleClass="input-label" text="Email" />
+                            <TextField fx:id="emailField" promptText="name@company.com" styleClass="input-field" />
+                        </VBox>
+
+                        <VBox spacing="8.0">
+                            <Label styleClass="input-label" text="Password" />
+                            <PasswordField fx:id="passwordField" promptText="Enter your password" styleClass="input-field" />
+                        </VBox>
+
+                        <HBox alignment="CENTER_LEFT" spacing="12.0">
+                            <StackPane HBox.hgrow="ALWAYS" />
+                        </HBox>
+
+                        <Button fx:id="signInButton" maxWidth="1.7976931348623157E308" onAction="#onLoginClick" styleClass="primary-button" text="Sign In" />
+                        <Label fx:id="feedbackLabel" styleClass="feedback-label" text="" />
+                    </VBox>
+                </StackPane>
+
+                <StackPane VBox.vgrow="ALWAYS" />
+            </VBox>
+        </HBox>
+    </children>
+</AnchorPane>

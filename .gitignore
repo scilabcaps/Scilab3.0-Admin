@@ -1,0 +1,36 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+.metadata
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven/Java (if using Maven)
+target/
+dependency-reduced-pom.xml
+.mvn/
+
+# Database (if sensitive)
+database_schema.sql
+
+# Lock files
+pubspec.lock
+
+# Environment
+.env
+.env.local

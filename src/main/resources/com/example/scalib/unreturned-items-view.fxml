@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.net.URL?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.example.scalib.controller.UnreturnedItemsController"
+      spacing="0" styleClass="page-root">
+    <stylesheets>
+        <URL value="@tableDesign.css"/>
+    </stylesheets>
+
+    <VBox styleClass="page-header">
+        <padding>
+            <Insets top="32" right="32" bottom="20" left="32"/>
+        </padding>
+        <Label styleClass="page-title" text="Unreturned Items"/>
+        <Label styleClass="page-subtitle"
+               text="Track borrowed resources that still need to be returned."
+               wrapText="true"/>
+    </VBox>
+
+    <HBox alignment="CENTER_LEFT" spacing="30" styleClass="unreturned-tabs">
+        <padding>
+            <Insets top="20" right="32" bottom="0" left="32"/>
+        </padding>
+        <Label text="All Unreturned Items" styleClass="unreturned-tab-active"/>
+        <Label text="Students with Unreturned Items" styleClass="unreturned-tab"/>
+        <Label text="Professors with Unreturned Items" styleClass="unreturned-tab"/>
+    </HBox>
+
+    <VBox VBox.vgrow="ALWAYS" styleClass="table-card">
+        <padding>
+            <Insets left="32" right="32" bottom="0" top="20"/>
+        </padding>
+
+        <VBox styleClass="table-wrap" VBox.vgrow="ALWAYS">
+            <GridPane styleClass="table-header-row">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="13"/>
+                    <ColumnConstraints percentWidth="17"/>
+                    <ColumnConstraints percentWidth="11"/>
+                    <ColumnConstraints percentWidth="10"/>
+                    <ColumnConstraints percentWidth="10"/>
+                    <ColumnConstraints percentWidth="12"/>
+                    <ColumnConstraints percentWidth="16"/>
+                    <ColumnConstraints percentWidth="11"/>
+                </columnConstraints>
+                <Label text="NAME" styleClass="th" GridPane.columnIndex="0"/>
+                <Label text="ITEM NAME" styleClass="th" GridPane.columnIndex="1"/>
+                <Label text="TYPE" styleClass="th" GridPane.columnIndex="2"/>
+                <Label text="BORROWED" styleClass="th" GridPane.columnIndex="3"/>
+                <Label text="RETURNED" styleClass="th" GridPane.columnIndex="4"/>
+                <Label text="UNRETURNED" styleClass="th" GridPane.columnIndex="5"/>
+                <Label text="RESERVATION DATE" styleClass="th" GridPane.columnIndex="6"/>
+                <Label text="ACTIONS" styleClass="th" GridPane.columnIndex="7"/>
+            </GridPane>
+
+            <ScrollPane fitToWidth="true" styleClass="table-scroll" VBox.vgrow="ALWAYS">
+                <GridPane styleClass="table-body" fx:id="tableGrid">
+                    <columnConstraints>
+                        <ColumnConstraints percentWidth="13"/>
+                        <ColumnConstraints percentWidth="17"/>
+                        <ColumnConstraints percentWidth="11"/>
+                        <ColumnConstraints percentWidth="10"/>
+                        <ColumnConstraints percentWidth="10"/>
+                        <ColumnConstraints percentWidth="12"/>
+                        <ColumnConstraints percentWidth="16"/>
+                        <ColumnConstraints percentWidth="11"/>
+                    </columnConstraints>
+
+                    <Label text="Joshua Orlina" styleClass="td" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                    <Label text="Clamp and holder" styleClass="td,td-res" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                    <Label text="Equipment" styleClass="td" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+                    <Label text="1" styleClass="td" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+                    <Label text="0" styleClass="td" GridPane.columnIndex="4" GridPane.rowIndex="0"/>
+                    <Label text="1" styleClass="td,td-danger" GridPane.columnIndex="5" GridPane.rowIndex="0"/>
+                    <Label text="2026-05-06" styleClass="td" GridPane.columnIndex="6" GridPane.rowIndex="0"/>
+                    <HBox styleClass="td" GridPane.columnIndex="7" GridPane.rowIndex="0">
+                        <Button text="Return" styleClass="btn-return"/>
+                    </HBox>
+                </GridPane>
+            </ScrollPane>
+        </VBox>
+    </VBox>
+
+    <HBox styleClass="page-footer" alignment="CENTER_LEFT">
+        <padding>
+            <Insets top="12" right="32" bottom="16" left="32"/>
+        </padding>
+        <Label fx:id="userLabel" styleClass="footer-label" text="User: admin@admin.com"/>
+    </HBox>
+</VBox>
