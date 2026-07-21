@@ -1,11 +1,13 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConstants {
   // App Info
   static const String appName = 'Scalib Admin';
   static const String appVersion = '1.0.0';
 
-  // API & Supabase
-  static const String supabaseUrl = 'https://mfemixkenhgpsterrqzo.supabase.co';
-  static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mZW1peGtlbmhncHN0ZXJycXpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4OTI5OTksImV4cCI6MjA5MzQ2ODk5OX0.nLwM4aKBjoMcNjhdn6-wC7gT4W4qnNduRq6qpBejzAs';
+  // API & Supabase - Load from environment variables
+  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
   // Storage Keys
   static const String keyAccessToken = 'access_token';
