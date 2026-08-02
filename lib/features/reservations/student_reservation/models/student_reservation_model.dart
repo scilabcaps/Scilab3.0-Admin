@@ -5,6 +5,7 @@ class StudentReservation {
   final String time;
   final String resources;
   final String yearSection;
+  final String course;
   final String professor;
   final String status;
   final String? lastUpdated;
@@ -16,6 +17,7 @@ class StudentReservation {
     required this.time,
     required this.resources,
     required this.yearSection,
+    required this.course,
     required this.professor,
     required this.status,
     this.lastUpdated,
@@ -29,6 +31,7 @@ class StudentReservation {
       time: json['time'] ?? '',
       resources: json['resources'] ?? '',
       yearSection: json['year_section'] ?? '',
+      course: json['course'] ?? '',
       professor: json['professor'] ?? '',
       status: json['status'] ?? 'Pending',
       lastUpdated: json['last_updated'],
@@ -43,6 +46,7 @@ class StudentReservation {
       'time': time,
       'resources': resources,
       'year_section': yearSection,
+      'course': course,
       'professor': professor,
       'status': status,
       'last_updated': lastUpdated,
@@ -56,6 +60,7 @@ class StudentReservation {
     String? time,
     String? resources,
     String? yearSection,
+    String? course,
     String? professor,
     String? status,
     String? lastUpdated,
@@ -67,6 +72,7 @@ class StudentReservation {
       time: time ?? this.time,
       resources: resources ?? this.resources,
       yearSection: yearSection ?? this.yearSection,
+      course: course ?? this.course,
       professor: professor ?? this.professor,
       status: status ?? this.status,
       lastUpdated: lastUpdated ?? this.lastUpdated,

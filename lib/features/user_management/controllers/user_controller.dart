@@ -3,15 +3,19 @@ import '../models/user_model.dart';
 import '../../../core/api/supabase_client.dart';
 import '../../../core/api/supabase_config.dart';
 import '../../../core/service/cache_service.dart';
+import '../../audit/services/audit_service.dart';
 
 class UserController extends ChangeNotifier {
   List<User> _students = [];
   List<User> _professors = [];
+  List<User> _pendingApprovals = [];
   String? _errorMessage;
   final CacheService _cache = CacheService();
+  final AuditService _auditService = AuditService();
 
   List<User> get students => _students;
   List<User> get professors => _professors;
+  List<User> get pendingApprovals => _pendingApprovals;
   String? get errorMessage => _errorMessage;
 
   Future<void> loadStudents() async {
@@ -25,7 +29,6 @@ class UserController extends ChangeNotifier {
         displayName: data['displayName'],
         firstName: data['firstName'],
         lastName: data['lastName'],
-        middleName: data['middleName'],
         phone: data['phone'],
         email: data['email'],
         userType: data['userType'],
@@ -50,7 +53,6 @@ class UserController extends ChangeNotifier {
           displayName: data['username'] ?? '',
           firstName: data['first_name'] ?? '',
           lastName: data['last_name'] ?? '',
-          middleName: data['middle_name'],
           phone: data['phone'],
           email: data['email'] ?? '',
           userType: 'student',
@@ -68,7 +70,6 @@ class UserController extends ChangeNotifier {
         'displayName': user.displayName,
         'firstName': user.firstName,
         'lastName': user.lastName,
-        'middleName': user.middleName,
         'phone': user.phone,
         'email': user.email,
         'userType': user.userType,
@@ -93,7 +94,6 @@ class UserController extends ChangeNotifier {
         displayName: data['displayName'],
         firstName: data['firstName'],
         lastName: data['lastName'],
-        middleName: data['middleName'],
         phone: data['phone'],
         email: data['email'],
         userType: data['userType'],
@@ -116,7 +116,6 @@ class UserController extends ChangeNotifier {
           displayName: data['username'] ?? '',
           firstName: data['first_name'] ?? '',
           lastName: data['last_name'] ?? '',
-          middleName: data['middle_name'],
           phone: data['phone'],
           email: data['email'] ?? '',
           userType: 'professor',
@@ -133,7 +132,6 @@ class UserController extends ChangeNotifier {
         'displayName': user.displayName,
         'firstName': user.firstName,
         'lastName': user.lastName,
-        'middleName': user.middleName,
         'phone': user.phone,
         'email': user.email,
         'userType': user.userType,
@@ -153,7 +151,6 @@ class UserController extends ChangeNotifier {
     required String email,
     required String password,
     required String userType,
-    String? middleName,
     String? phone,
   }) async {
     _errorMessage = null;
@@ -173,17 +170,23 @@ class UserController extends ChangeNotifier {
       }
 
       // Step 2: Insert user info into user_info table
-      await SupabaseService.database
-          .from(SupabaseConfig.tableUserInfo)
-          .insert({
+      final userData = <String, dynamic>{
         'id': authResponse.user!.id,
         'email': email,
         'first_name': firstName,
         'last_name': lastName,
-        'middle_name': middleName,
         'phone': phone,
         'role': userType,
-      });
+      };
+      
+      // Auto-approve professor accounts
+      if (userType == 'professor') {
+        userData['isApproved'] = 1;
+      }
+      
+      await SupabaseService.database
+          .from(SupabaseConfig.tableUserInfo)
+          .insert(userData);
 
       // Step 3: Add to local list
       final newUser = User(
@@ -191,7 +194,6 @@ class UserController extends ChangeNotifier {
         displayName: email,
         firstName: firstName,
         lastName: lastName,
-        middleName: middleName,
         phone: phone,
         email: email,
         userType: userType,
@@ -212,6 +214,20 @@ class UserController extends ChangeNotifier {
       } else {
         await _cache.remove('professors_list');
       }
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'CREATE',
+        entityType: 'user',
+        entityId: authResponse.user!.id,
+        newValues: {
+          'email': email,
+          'first_name': firstName,
+          'last_name': lastName,
+          'role': userType,
+        },
+        description: 'Created $userType account: $firstName $lastName',
+      );
 
       return true;
     } catch (e) {
@@ -250,6 +266,15 @@ class UserController extends ChangeNotifier {
       } else {
         await _cache.remove('professors_list');
       }
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'BAN',
+        entityType: 'user',
+        entityId: userId,
+        newValues: {'is_banned': true},
+        description: 'Banned $userType: $userId',
+      );
     } catch (e) {
       print('Error banning user: $e');
     }
@@ -283,6 +308,15 @@ class UserController extends ChangeNotifier {
       } else {
         await _cache.remove('professors_list');
       }
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'UNBAN',
+        entityType: 'user',
+        entityId: userId,
+        newValues: {'is_banned': false},
+        description: 'Unbanned $userType: $userId',
+      );
     } catch (e) {
       print('Error unbanning user: $e');
     }
@@ -291,7 +325,175 @@ class UserController extends ChangeNotifier {
   void clearLocalData() {
     _students.clear();
     _professors.clear();
+    _pendingApprovals.clear();
     notifyListeners();
+  }
+
+  Future<void> loadPendingApprovals() async {
+    final cacheKey = 'pending_approvals_list';
+    
+    // Try to get from cache first
+    final cachedApprovals = _cache.get<List<Map<String, dynamic>>>(cacheKey);
+    if (cachedApprovals != null) {
+      _pendingApprovals = cachedApprovals.map((data) => User(
+        userId: data['userId'],
+        displayName: data['displayName'],
+        firstName: data['firstName'],
+        lastName: data['lastName'],
+        phone: data['phone'],
+        email: data['email'],
+        userType: data['userType'],
+        createdAt: data['createdAt'] != null ? DateTime.parse(data['createdAt']) : null,
+        isBanned: data['isBanned'],
+      )).toList();
+      notifyListeners();
+      return;
+    }
+
+    try {
+      // Load users with isApproved = 0 or where approval status is pending
+      final response = await SupabaseService.database
+          .from(SupabaseConfig.tableUserInfo)
+          .select()
+          .eq('isApproved', 0);
+
+      _pendingApprovals = (response as List).map((data) {
+        return User(
+          userId: data['id'],
+          displayName: data['username'] ?? '',
+          firstName: data['first_name'] ?? '',
+          lastName: data['last_name'] ?? '',
+          phone: data['phone'],
+          email: data['email'] ?? '',
+          userType: data['role'] ?? 'student',
+          createdAt: DateTime.parse(data['created_at']),
+          isBanned: data['is_banned'] ?? false,
+        );
+      }).toList();
+
+      notifyListeners();
+
+      // Cache the result with 30 minute TTL (approvals change more frequently)
+      await _cache.set(cacheKey, _pendingApprovals.map((user) => {
+        'userId': user.userId,
+        'displayName': user.displayName,
+        'firstName': user.firstName,
+        'lastName': user.lastName,
+        'phone': user.phone,
+        'email': user.email,
+        'userType': user.userType,
+        'createdAt': user.createdAt?.toIso8601String(),
+        'isBanned': user.isBanned,
+      }).toList(), ttlMinutes: 30);
+    } catch (e) {
+      print('Error loading pending approvals: $e');
+      _pendingApprovals = [];
+      notifyListeners();
+    }
+  }
+
+  Future<bool> approveAccount(String userId) async {
+    try {
+      // Update user_info table to mark as approved
+      await SupabaseService.database
+          .from(SupabaseConfig.tableUserInfo)
+          .update({'isApproved': 1})
+          .eq('id', userId);
+
+      // Remove from pending approvals
+      _pendingApprovals.removeWhere((user) => user.userId == userId);
+      notifyListeners();
+
+      // Clear cache after approval to ensure consistency
+      await _cache.remove('pending_approvals_list');
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'APPROVE',
+        entityType: 'user',
+        entityId: userId,
+        newValues: {'isApproved': 1},
+        description: 'Approved account: $userId',
+      );
+
+      return true;
+    } catch (e) {
+      print('Error approving account: $e');
+      return false;
+    }
+  }
+
+  Future<bool> approveAsProfessor(String userId) async {
+    try {
+      // Update user_info table to mark as approved and set role to professor
+      await SupabaseService.database
+          .from(SupabaseConfig.tableUserInfo)
+          .update({
+            'isApproved': 1,
+            'role': 'professor',
+          })
+          .eq('id', userId);
+
+      // Remove from pending approvals
+      _pendingApprovals.removeWhere((user) => user.userId == userId);
+      notifyListeners();
+
+      // Clear cache after approval to ensure consistency
+      await _cache.remove('pending_approvals_list');
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'APPROVE',
+        entityType: 'user',
+        entityId: userId,
+        newValues: {'isApproved': 1, 'role': 'professor'},
+        description: 'Approved account as professor: $userId',
+      );
+
+      return true;
+    } catch (e) {
+      print('Error approving account as professor: $e');
+      return false;
+    }
+  }
+
+  Future<bool> rejectAccount(String userId, String? reason) async {
+    try {
+      // Update user_info table to mark as rejected
+      await SupabaseService.database
+          .from(SupabaseConfig.tableUserInfo)
+          .update({
+            'isApproved': 2,
+            'isRejected': 1,
+            'rejection_reason': reason,
+          })
+          .eq('id', userId);
+
+      // Remove from pending approvals
+      _pendingApprovals.removeWhere((user) => user.userId == userId);
+      notifyListeners();
+
+      // Clear cache after rejection to ensure consistency
+      await _cache.remove('pending_approvals_list');
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'REJECT',
+        entityType: 'user',
+        entityId: userId,
+        newValues: {
+          'is_approved': false,
+          'is_rejected': true,
+          'rejection_reason': reason,
+        },
+        description: 'Rejected account: $userId',
+      );
+
+      return true;
+    } catch (e) {
+      print('Error rejecting account: $e');
+      return false;
+    }
   }
 
   Future<bool> updateUser(User updatedUser) async {
@@ -299,6 +501,11 @@ class UserController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Capture old values before update
+      final oldUser = updatedUser.userType == 'student'
+          ? _students.firstWhere((u) => u.userId == updatedUser.userId)
+          : _professors.firstWhere((u) => u.userId == updatedUser.userId);
+
       // Update user_info table
       await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
@@ -306,7 +513,6 @@ class UserController extends ChangeNotifier {
         'email': updatedUser.email,
         'first_name': updatedUser.firstName,
         'last_name': updatedUser.lastName,
-        'middle_name': updatedUser.middleName,
         'phone': updatedUser.phone,
       })
           .eq('id', updatedUser.userId);
@@ -332,6 +538,24 @@ class UserController extends ChangeNotifier {
       } else {
         await _cache.remove('professors_list');
       }
+
+      // Log audit action
+      await _auditService.logAction(
+        actionType: 'UPDATE',
+        entityType: 'user',
+        entityId: updatedUser.userId,
+        oldValues: {
+          'email': oldUser.email,
+          'first_name': oldUser.firstName,
+          'last_name': oldUser.lastName,
+        },
+        newValues: {
+          'email': updatedUser.email,
+          'first_name': updatedUser.firstName,
+          'last_name': updatedUser.lastName,
+        },
+        description: 'Updated user: ${updatedUser.firstName} ${updatedUser.lastName}',
+      );
 
       return true;
     } catch (e) {

@@ -8,6 +8,7 @@ class InventoryItem {
   final String? lastUpdated;
   final String? formula;
   final String? unit;
+  final String? expiration;
   final int? totalStock;
   final String? conditionNotes;
 
@@ -21,6 +22,7 @@ class InventoryItem {
     this.lastUpdated,
     this.formula,
     this.unit,
+    this.expiration,
     this.totalStock,
     this.conditionNotes,
   });
@@ -39,6 +41,7 @@ class InventoryItem {
         lastUpdated: json['created_at']?.toString(),
         formula: json['formula'],
         unit: json['unit'],
+        expiration: json['expiration']?.toString(),
       );
     }
     
@@ -88,6 +91,7 @@ class InventoryItem {
       'last_updated': lastUpdated,
       'formula': formula,
       'unit': unit,
+      'expiration': expiration,
       'total_stock': totalStock,
       'condition_notes': conditionNotes,
     };
@@ -103,6 +107,7 @@ class InventoryItem {
     String? lastUpdated,
     String? formula,
     String? unit,
+    String? expiration,
     int? totalStock,
     String? conditionNotes,
   }) {
@@ -116,6 +121,7 @@ class InventoryItem {
       lastUpdated: lastUpdated ?? this.lastUpdated,
       formula: formula ?? this.formula,
       unit: unit ?? this.unit,
+      expiration: expiration ?? this.expiration,
       totalStock: totalStock ?? this.totalStock,
       conditionNotes: conditionNotes ?? this.conditionNotes,
     );

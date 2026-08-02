@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:excel/excel.dart' as excel;
+import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
+import 'dart:io';
 import '../models/inventory_model.dart';
 
 class ReportDialog extends StatefulWidget {
@@ -19,8 +23,6 @@ class _ReportDialogState extends State<ReportDialog> {
   String selectedCategory = 'all';
   String selectedStatus = '';
   String selectedStockLevel = '';
-  DateTime? startDate;
-  DateTime? endDate;
   int currentPage = 1;
   int itemsPerPage = 10;
 
@@ -66,16 +68,181 @@ class _ReportDialogState extends State<ReportDialog> {
 
   int get totalPages => (filteredItems.length / itemsPerPage).ceil();
 
-  void _generateReport() {
-    setState(() {
-      currentPage = 1;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Report generated successfully'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  Future<void> _exportToExcel() async {
+    try {
+      final excelFile = excel.Excel.createExcel();
+      
+      // Delete default sheet if it exists
+      excelFile.delete('Sheet1');
+      
+      final sheet = excelFile['Inventory Report'];
+
+      // Add headers with styling
+      final headerStyle = excel.CellStyle(
+        backgroundColorHex: excel.ExcelColor.fromHexString('#4CAF50'),
+        fontColorHex: excel.ExcelColor.fromHexString('#FFFFFF'),
+        bold: true,
+        horizontalAlign: excel.HorizontalAlign.Center,
+      );
+
+      sheet.appendRow([
+        excel.TextCellValue('Item Name'),
+        excel.TextCellValue('Category'),
+        excel.TextCellValue('Quantity'),
+        excel.TextCellValue('Status'),
+        excel.TextCellValue('Stock Level'),
+        excel.TextCellValue('Last Updated'),
+        excel.TextCellValue('Expiration'),
+      ]);
+
+      // Apply header style to first row
+      for (int i = 0; i < 7; i++) {
+        sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0)).cellStyle = headerStyle;
+      }
+
+      // Add data - use filtered items if filters are applied, otherwise use all items
+      final itemsToExport = filteredItems.isNotEmpty ? filteredItems : widget.inventoryItems;
+      
+      debugPrint('Exporting ${itemsToExport.length} items to Excel');
+      debugPrint('Total inventory items: ${widget.inventoryItems.length}');
+      debugPrint('Filtered items: ${filteredItems.length}');
+      
+      // Track max lengths for each column to auto-adjust widths
+      final List<int> maxColumnLengths = [10, 8, 8, 10, 11, 16, 10]; // Initial values based on headers
+
+      for (final item in itemsToExport) {
+        String formattedDate = '-';
+        if (item.lastUpdated != null && item.lastUpdated != '-') {
+          try {
+            final dateTime = DateTime.parse(item.lastUpdated!);
+            formattedDate = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+          } catch (e) {
+            formattedDate = item.lastUpdated ?? '-';
+          }
+        }
+
+        String formattedExpiration = '-';
+        if (item.expiration != null && item.expiration!.isNotEmpty) {
+          formattedExpiration = _formatDate(item.expiration);
+        }
+
+        final values = [
+          item.itemName,
+          item.category,
+          item.quantity.toString(),
+          item.status,
+          item.stockLevel,
+          formattedDate,
+          formattedExpiration,
+        ];
+        
+        // Update max lengths
+        for (int i = 0; i < values.length; i++) {
+          if (values[i].length > maxColumnLengths[i]) {
+            maxColumnLengths[i] = values[i].length;
+          }
+        }
+        
+        sheet.appendRow([
+          excel.TextCellValue(item.itemName),
+          excel.TextCellValue(item.category),
+          excel.IntCellValue(item.quantity),
+          excel.TextCellValue(item.status),
+          excel.TextCellValue(item.stockLevel),
+          excel.TextCellValue(formattedDate),
+          excel.TextCellValue(formattedExpiration),
+        ]);
+      }
+      
+      debugPrint('Excel rows added: ${itemsToExport.length}');
+
+      // Auto-adjust column widths based on max content length
+      for (int i = 0; i < maxColumnLengths.length; i++) {
+        final columnWidth = (maxColumnLengths[i] * 1.2).round(); // Add some padding
+        sheet.setColumnWidth(i, columnWidth.toDouble());
+      }
+
+      // Set the 'Inventory Report' sheet as the active/default sheet
+      excelFile.setDefaultSheet('Inventory Report');
+
+      // Let user choose save location
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Inventory Report',
+        fileName: 'inventory_report_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (result != null) {
+        final bytes = excelFile.encode();
+        if (bytes != null) {
+          final file = File(result);
+          await file.writeAsBytes(bytes);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Report saved to: $result'),
+                duration: const Duration(seconds: 3),
+                backgroundColor: const Color(0xFF31CB00),
+              ),
+            );
+
+            // Show dialog to ask if user wants to open the file
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Open Report?'),
+                content: const Text('Do you want to open the generated report?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('No'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await OpenFile.open(result);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF31CB00),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Yes'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting to Excel: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr == '-' || dateStr.isEmpty) {
+      return '-';
+    }
+
+    try {
+      final dateTime = DateTime.parse(dateStr);
+      final months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   void _resetFilters() {
@@ -83,8 +250,6 @@ class _ReportDialogState extends State<ReportDialog> {
       selectedCategory = 'all';
       selectedStatus = '';
       selectedStockLevel = '';
-      startDate = null;
-      endDate = null;
       currentPage = 1;
     });
   }
@@ -222,11 +387,12 @@ class _ReportDialogState extends State<ReportDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Wrap(
             spacing: 20,
             runSpacing: 20,
+            alignment: WrapAlignment.end,
             children: [
               _buildFilterDropdown(
                 label: 'Category',
@@ -240,24 +406,6 @@ class _ReportDialogState extends State<ReportDialog> {
                 onChanged: (value) {
                   setState(() {
                     selectedCategory = value ?? 'all';
-                  });
-                },
-              ),
-              _buildDateFilter(
-                label: 'Start Date',
-                value: startDate,
-                onChanged: (value) {
-                  setState(() {
-                    startDate = value;
-                  });
-                },
-              ),
-              _buildDateFilter(
-                label: 'End Date',
-                value: endDate,
-                onChanged: (value) {
-                  setState(() {
-                    endDate = value;
                   });
                 },
               ),
@@ -304,15 +452,6 @@ class _ReportDialogState extends State<ReportDialog> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               ElevatedButton(
-                onPressed: _generateReport,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF31CB00),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Generate Report'),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
                 onPressed: _resetFilters,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C757D),
@@ -322,25 +461,12 @@ class _ReportDialogState extends State<ReportDialog> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: () {
-                  // TODO: Implement export to Excel
-                },
+                onPressed: _exportToExcel,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C757D),
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('Export Excel'),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () {
-                  // TODO: Implement print
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C757D),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Print'),
               ),
             ],
           ),
@@ -369,7 +495,7 @@ class _ReportDialogState extends State<ReportDialog> {
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            value: value.isEmpty ? null : value,
+            initialValue: value.isEmpty ? null : value,
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white,
@@ -384,65 +510,6 @@ class _ReportDialogState extends State<ReportDialog> {
             ),
             items: items,
             onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateFilter({
-    required String label,
-    required DateTime? value,
-    required void Function(DateTime?) onChanged,
-  }) {
-    return SizedBox(
-      width: 180,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 6),
-          InkWell(
-            onTap: () async {
-              final DateTime? picked = await showDatePicker(
-                context: context,
-                initialDate: value ?? DateTime.now(),
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2030),
-              );
-              if (picked != null) {
-                onChanged(picked);
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 18, color: Colors.grey.shade600),
-                  const SizedBox(width: 8),
-                  Text(
-                    value != null
-                        ? '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}'
-                        : 'Select Date',
-                    style: TextStyle(
-                      color: value != null ? Colors.black : Colors.grey.shade600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -464,9 +531,11 @@ class _ReportDialogState extends State<ReportDialog> {
       ),
       child: Column(
         children: [
-          paginatedItems.isEmpty
-              ? _buildEmptyState()
-              : _buildInventoryTable(),
+          Expanded(
+            child: paginatedItems.isEmpty
+                ? _buildEmptyState()
+                : _buildInventoryTable(),
+          ),
           if (filteredItems.isNotEmpty) _buildPagination(),
         ],
       ),
@@ -506,58 +575,81 @@ class _ReportDialogState extends State<ReportDialog> {
   }
 
   Widget _buildInventoryTable() {
-    return SingleChildScrollView(
-      child: DataTable(
-        columns: const [
-          DataColumn(
-            label: Text(
-              'Item Name',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+    return Column(
+      children: [
+        _buildTableHeader(),
+        ...paginatedItems.map((item) => _buildInventoryRow(item)),
+      ],
+    );
+  }
+
+  Widget _buildTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      child: const Row(
+        children: [
+          Expanded(flex: 3, child: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 1, child: Text('Quantity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Stock Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Expiration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInventoryRow(InventoryItem item) {
+    String formattedExpiration = '-';
+    if (item.expiration != null && item.expiration!.isNotEmpty) {
+      formattedExpiration = _formatDate(item.expiration);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(item.itemName),
           ),
-          DataColumn(
-            label: Text(
-              'Category',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          Expanded(
+            flex: 2,
+            child: Text(item.category),
           ),
-          DataColumn(
-            label: Text(
-              'Quantity',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          Expanded(
+            flex: 1,
+            child: Text(item.quantity.toString()),
           ),
-          DataColumn(
-            label: Text(
-              'Status',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          Expanded(
+            flex: 2,
+            child: _buildStatusBadge(item.status),
           ),
-          DataColumn(
-            label: Text(
-              'Stock Level',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          Expanded(
+            flex: 2,
+            child: _buildStockLevelBadge(item.stockLevel),
           ),
-          DataColumn(
-            label: Text(
-              'Last Updated',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          Expanded(
+            flex: 2,
+            child: Text(_formatDate(item.lastUpdated)),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(formattedExpiration),
           ),
         ],
-        rows: paginatedItems.map((item) {
-          return DataRow(
-            cells: [
-              DataCell(Text(item.itemName)),
-              DataCell(Text(item.category)),
-              DataCell(Text(item.quantity.toString())),
-              DataCell(_buildStatusBadge(item.status)),
-              DataCell(_buildStockLevelBadge(item.stockLevel)),
-              DataCell(Text(item.lastUpdated ?? '-')),
-            ],
-          );
-        }).toList(),
       ),
     );
   }

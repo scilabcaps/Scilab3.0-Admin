@@ -49,6 +49,17 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    IconButton(
+                      onPressed: () {
+                        _controller.refresh();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Refresh',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF152614),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -92,6 +103,11 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _buildSearchBar(),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildFilterRow(),
             ),
             const SizedBox(height: 20),
             Expanded(
@@ -156,6 +172,104 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFilterRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildDropdown(
+            label: 'Category',
+            value: _controller.selectedCategory,
+            hint: 'All Categories',
+            items: <String?>[null, ..._controller.categories],
+          ),
+        ),
+        // Due date filter disabled since due_date column doesn't exist in database
+        const SizedBox(width: 12),
+        const Expanded(
+          child: SizedBox(), // Placeholder to maintain layout
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required String hint,
+    required List<dynamic> items,
+  }) {
+    final isDateDropdown = items.isNotEmpty && items.first is MapEntry;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: isDateDropdown
+              ? DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: value,
+                    isExpanded: true,
+                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                    items: (items as List<MapEntry<String, String>>).map((entry) {
+                      return DropdownMenuItem<String>(
+                        value: entry.key,
+                        child: Text(
+                          entry.value,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        _controller.setSelectedDueDateFilter(val);
+                      }
+                    },
+                  ),
+                )
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<String?>(
+                    value: value,
+                    isExpanded: true,
+                    hint: Text(
+                      hint,
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                    items: (items as List<String?>).map((item) {
+                      return DropdownMenuItem<String?>(
+                        value: item,
+                        child: Text(
+                          item ?? hint,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      _controller.setSelectedCategory(val);
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 

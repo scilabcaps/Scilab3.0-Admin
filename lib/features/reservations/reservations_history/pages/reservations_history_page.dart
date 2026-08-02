@@ -45,7 +45,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       builder: (context, child) {
         return Container(
           color: const Color(0xFFE8F5E9),
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,7 +56,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
                 const SizedBox(height: 24),
                 _buildFilterSection(),
                 const SizedBox(height: 20),
-                _buildReservationsContent(),
+                Expanded(child: _buildReservationsContent()),
               ],
             ),
           ),
@@ -124,8 +124,8 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            'Rejected',
-            _controller.rejectedReservations,
+            'Declined',
+            _controller.declinedReservations,
             const Color(0xFFF44336),
             Icons.block,
           ),
@@ -136,7 +136,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
 
   Widget _buildStatCard(String label, int count, Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -145,34 +145,40 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: Colors.white, size: 24),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -286,6 +292,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           hint: const Text('All Status'),
           items: const [
             DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+            DropdownMenuItem(value: 'Declined', child: Text('Declined')),
             DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
           ],
           onChanged: (value) {
@@ -455,145 +462,157 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           ),
         ],
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(
-            Colors.grey.shade100,
+      child: Column(
+        children: [
+          _buildTableHeader(),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                children: filteredReservations.map((reservation) => _buildReservationRow(reservation)).toList(),
+              ),
+            ),
           ),
-          headingRowHeight: 48,
-          dataRowHeight: 56,
-          columnSpacing: 20,
-          columns: const [
-            DataColumn(
-              label: Text(
-                'User Name',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Role',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Type',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Room / Item',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Date',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Time',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Status',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Actions',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-          rows: filteredReservations.map((reservation) {
-            return DataRow(
-              color: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.hovered)) {
-                  return Colors.grey.shade50;
-                }
-                return Colors.white;
-              }),
-              cells: [
-                DataCell(
-                  Text(
-                    reservation.userName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                DataCell(_buildRoleBadge(reservation.role)),
-                DataCell(
-                  Text(
-                    reservation.reservationType,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                DataCell(
-                  SizedBox(
-                    width: 150,
-                    child: Text(
-                      reservation.roomItemReserved,
-                      style: const TextStyle(fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    reservation.reservationDate,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    reservation.timeSchedule,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                DataCell(_buildStatusBadge(reservation.status)),
-                DataCell(
-                  SizedBox(
-                    height: 32,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _showReceiptModal(reservation);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF31CB00),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'View Receipt',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
+          _buildPagination(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
         ),
+      ),
+      child: const Row(
+        children: [
+          Expanded(flex: 3, child: Text('User Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 3, child: Text('Room / Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReservationRow(ReservationHistory reservation) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              reservation.userName,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: _buildRoleBadge(reservation.role),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              reservation.reservationType,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              reservation.roomItemReserved,
+              style: const TextStyle(fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              reservation.reservationDate,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              reservation.timeSchedule,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: _buildStatusBadge(reservation.status),
+          ),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 32,
+              child: ElevatedButton(
+                onPressed: () => _showReceiptModal(reservation),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF31CB00),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('View Receipt', style: TextStyle(fontSize: 13)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Page ${_controller.currentPage} of ${_controller.totalPages} (${_controller.totalRows} total)',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: _controller.currentPage > 1
+                    ? () => _controller.loadReservations(page: _controller.currentPage - 1)
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Previous page',
+              ),
+              IconButton(
+                onPressed: _controller.currentPage < _controller.totalPages
+                    ? () => _controller.loadReservations(page: _controller.currentPage + 1)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Next page',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

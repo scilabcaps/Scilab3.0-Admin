@@ -6,37 +6,13 @@ class ReservationsHistoryService {
   final SupabaseClient _client = Supabase.instance.client;
   final CacheService _cache = CacheService();
 
-  /// Fetch all reservations with user, room, and items information
-  Future<List<ReservationHistory>> fetchReservations() async {
-    final cacheKey = 'reservations_history';
-    
-    // Try to get from cache first
-    final cachedReservations = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedReservations != null) {
-      return cachedReservations.map((data) => ReservationHistory(
-        reservationId: data['reservationId'] as String,
-        userName: data['userName'] as String,
-        role: data['role'] as String,
-        reservationType: data['reservationType'] as String,
-        roomItemReserved: data['roomItemReserved'] as String,
-        reservationDate: data['reservationDate'] as String,
-        timeSchedule: data['timeSchedule'] as String,
-        status: data['status'] as String,
-        dateCreated: data['dateCreated'] as String,
-        items: data['items'] != null 
-            ? (data['items'] as List).map((item) => ReservedItem(
-              itemId: item['itemId'] as String,
-              itemName: item['itemName'] as String,
-              quantity: item['quantity'] as int,
-              returnedQuantity: item['returnedQuantity'] as int,
-              status: item['status'] as String,
-            )).toList()
-            : null,
-      )).toList();
-    }
+  /// Fetch reservations with pagination
+  Future<List<ReservationHistory>> fetchReservations({int page = 1, int limit = 20}) async {
+    final start = (page - 1) * limit;
+    final end = start + limit - 1;
 
     try {
-      // Fetch reservations with user info and room info
+      // Fetch paginated reservations with user info and room info
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -46,18 +22,23 @@ class ReservationsHistoryService {
             reservation_date,
             start_time,
             end_time,
-            year,
-            section,
+            year_section,
+            course,
             professor,
             professor_approval,
             admin_approval,
             status,
             additional_note,
             created_at,
-            updated_at
+            updated_at,
+            rooms (
+              room_id,
+              room_name
+            )
           ''')
-          .eq('status', 'Completed')
-          .order('created_at', ascending: false);
+          .inFilter('status', ['Completed', 'Declined', 'Cancelled', 'Unreturned'])
+          .order('created_at', ascending: false)
+          .range(start, end);
 
       // Fetch user info for all users in reservations
       final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
@@ -65,7 +46,7 @@ class ReservationsHistoryService {
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
             .from('user_info')
-            .select('id, username, email, first_name, last_name, middle_name, role')
+            .select('id, username, email, first_name, last_name, role')
             .inFilter('id', userIds);
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
@@ -121,14 +102,16 @@ class ReservationsHistoryService {
         String roomItemReserved = '';
         if (hasItems) {
           // If has items, show the first item name or count
-          final items = itemsMap[reservationId]!;
-          if (items.length == 1) {
+          final items = itemsMap[reservationId];
+          if (items != null && items.length == 1) {
             roomItemReserved = items[0].itemName;
           } else {
-            roomItemReserved = '${items.length} items';
+            roomItemReserved = '${items?.length ?? 0} items';
           }
         } else {
-          roomItemReserved = 'Room ID: ${reservation['room_id'] ?? 'Unknown'}';
+          // Use room name from rooms relation
+          final room = reservation['rooms'];
+          roomItemReserved = room != null ? (room['room_name'] ?? 'Unknown Room') : 'Room ID: ${reservation['room_id'] ?? 'Unknown'}';
         }
 
         // Format time schedule
@@ -168,29 +151,24 @@ class ReservationsHistoryService {
         ));
       }
 
-      // Cache the result with 30 minute TTL (historical data is static)
-      await _cache.set(cacheKey, reservations.map((reservation) => {
-        'reservationId': reservation.reservationId,
-        'userName': reservation.userName,
-        'role': reservation.role,
-        'reservationType': reservation.reservationType,
-        'roomItemReserved': reservation.roomItemReserved,
-        'reservationDate': reservation.reservationDate,
-        'timeSchedule': reservation.timeSchedule,
-        'status': reservation.status,
-        'dateCreated': reservation.dateCreated,
-        'items': reservation.items?.map((item) => {
-          'itemId': item.itemId,
-          'itemName': item.itemName,
-          'quantity': item.quantity,
-          'returnedQuantity': item.returnedQuantity,
-          'status': item.status,
-        }).toList(),
-      }).toList(), ttlMinutes: 30);
-
       return reservations;
     } catch (e) {
       throw Exception('Failed to fetch reservations: $e');
+    }
+  }
+
+  /// Count total history reservations (for pagination)
+  Future<int> countReservations() async {
+    try {
+      final response = await _client
+          .from('reservations')
+          .select('reservation_id')
+          .inFilter('status', ['Completed', 'Declined', 'Cancelled', 'Unreturned'])
+          .count();
+      return response.count;
+    } catch (e) {
+      print('Error counting reservations: $e');
+      return 0;
     }
   }
 
@@ -206,8 +184,8 @@ class ReservationsHistoryService {
             reservation_date,
             start_time,
             end_time,
-            year,
-            section,
+            year_section,
+            course,
             professor,
             professor_approval,
             admin_approval,
@@ -221,7 +199,6 @@ class ReservationsHistoryService {
               email,
               first_name,
               last_name,
-              middle_name,
               role
             ),
             rooms (

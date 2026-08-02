@@ -14,6 +14,9 @@ class ReservationsHistoryController extends ChangeNotifier {
   String _searchQuery = '';
   bool _isLoading = false;
   String? _errorMessage;
+  int _currentPage = 1;
+  int _totalRows = 0;
+  final int _limit = 20;
 
   List<ReservationHistory> get reservations => _reservations;
   String get selectedFilter => _selectedFilter;
@@ -25,6 +28,10 @@ class ReservationsHistoryController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  int get currentPage => _currentPage;
+  int get totalRows => _totalRows;
+  int get limit => _limit;
+  int get totalPages => _totalRows > 0 ? (_totalRows / _limit).ceil() : 0;
 
   List<ReservationHistory> get filteredReservations {
     var filtered = _reservations;
@@ -99,17 +106,20 @@ class ReservationsHistoryController extends ChangeNotifier {
 
   int get filteredCount => filteredReservations.length;
 
-  Future<void> loadReservations() async {
+  Future<void> loadReservations({int? page}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _reservations = await _service.fetchReservations();
+      if (page != null) _currentPage = page;
+      _reservations = await _service.fetchReservations(page: _currentPage, limit: _limit);
+      _totalRows = await _service.countReservations();
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to load reservations: $e';
       _reservations = [];
+      _totalRows = 0;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -222,7 +232,7 @@ class ReservationsHistoryController extends ChangeNotifier {
   int get totalReservations => _reservations.length;
   int get completedReservations => _reservations.where((r) => r.status.toLowerCase() == 'completed').length;
   int get cancelledReservations => _reservations.where((r) => r.status.toLowerCase() == 'cancelled').length;
-  int get rejectedReservations => _reservations.where((r) => r.status.toLowerCase() == 'rejected').length;
+  int get declinedReservations => _reservations.where((r) => r.status.toLowerCase() == 'declined').length;
   int get pendingReservations => _reservations.where((r) => r.status.toLowerCase() == 'pending').length;
   int get studentReservations => _reservations.where((r) => r.role.toLowerCase() == 'student').length;
   int get professorReservations => _reservations.where((r) => r.role.toLowerCase() == 'professor').length;

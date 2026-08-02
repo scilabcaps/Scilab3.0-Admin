@@ -3,7 +3,6 @@ class User {
   final String displayName;
   final String firstName;
   final String lastName;
-  final String? middleName;
   final String? phone;
   final String email;
   final String userType; // 'student' or 'professor'
@@ -15,7 +14,6 @@ class User {
     required this.displayName,
     required this.firstName,
     required this.lastName,
-    this.middleName,
     this.phone,
     required this.email,
     required this.userType,
@@ -29,7 +27,6 @@ class User {
       displayName: json['display_name'] ?? json['username'] ?? '',
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
-      middleName: json['middle_name'],
       phone: json['phone'],
       email: json['email'] ?? '',
       userType: json['user_type'] ?? json['role'] ?? json['account_type'] ?? 'student',
@@ -46,7 +43,6 @@ class User {
       'display_name': displayName,
       'first_name': firstName,
       'last_name': lastName,
-      'middle_name': middleName,
       'phone': phone,
       'email': email,
       'user_type': userType,
@@ -56,9 +52,6 @@ class User {
   }
 
   String get fullName {
-    if (middleName != null && middleName!.isNotEmpty) {
-      return '$firstName $middleName $lastName';
-    }
     return '$firstName $lastName';
   }
 
@@ -67,7 +60,6 @@ class User {
     String? displayName,
     String? firstName,
     String? lastName,
-    String? middleName,
     String? phone,
     String? email,
     String? userType,
@@ -79,7 +71,6 @@ class User {
       displayName: displayName ?? this.displayName,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
-      middleName: middleName ?? this.middleName,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       userType: userType ?? this.userType,

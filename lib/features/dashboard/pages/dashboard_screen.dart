@@ -5,6 +5,7 @@ import 'dashboard_page.dart';
 import '../../audit/pages/audit_page.dart';
 import '../../user_management/pages/manage_students_page.dart';
 import '../../user_management/pages/manage_professors_page.dart';
+import '../../user_management/pages/accounts_approvals_page.dart';
 import '../../room_and_resources/room_monitor/pages/room_monitor_page.dart';
 import '../../room_and_resources/inventory/pages/inventory_page.dart';
 import '../../room_and_resources/unreturned_item/pages/unreturned_item_page.dart';
@@ -31,7 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _selectedSubItem = destination;
       
       // Set the appropriate parent item based on destination
-      if (['Manage Students', 'Manage Professors'].contains(destination)) {
+      if (['Accounts Approvals', 'Manage Students', 'Manage Professors'].contains(destination)) {
         _selectedItem = NavigationItemType.userManagement;
         _expandedItems.add(NavigationItemType.userManagement);
       } else if (['Room Monitor', 'Inventory', 'Unreturned Items'].contains(destination)) {
@@ -252,7 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BoxShadow(
             color: Colors.black12,
             blurRadius: 4,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -321,6 +322,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Handle sub-items first
     if (_selectedSubItem.isNotEmpty) {
       switch (_selectedSubItem) {
+        case 'Accounts Approvals':
+          return const AccountsApprovalsPage();
         case 'Manage Students':
           return const ManageStudentsPage();
         case 'Manage Professors':
@@ -356,7 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return const RoomMonitorPage();
       case NavigationItemType.userManagement:
         // Default to first sub-item
-        return const ManageStudentsPage();
+        return const AccountsApprovalsPage();
     }
   }
 }

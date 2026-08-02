@@ -14,7 +14,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   final UserController _controller = UserController();
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
-  final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -23,6 +22,7 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isCreating = false;
   bool _isUpdating = false;
 
   @override
@@ -35,7 +35,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   void dispose() {
     _controller.dispose();
     _firstNameController.dispose();
-    _middleNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -123,14 +122,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                     const SizedBox(width: 20),
                     Expanded(
                       child: _buildFormField(
-                        controller: _middleNameController,
-                        label: 'Middle Name',
-                        icon: Icons.person_outline,
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: _buildFormField(
                         controller: _lastNameController,
                         label: 'Last Name *',
                         icon: Icons.person_outline,
@@ -196,7 +187,7 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _handleSubmit,
+                    onPressed: _isCreating ? null : _handleSubmit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
                       foregroundColor: theme.colorScheme.onPrimary,
@@ -205,13 +196,22 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Create Professor Account',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isCreating
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Create Professor Account',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -308,72 +308,139 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   }
 
   Widget _buildProfessorsTable(ThemeData theme) {
+    return Column(
+      children: [
+        _buildTableHeader(theme),
+        if (_controller.professors.isEmpty)
+          _buildEmptyState()
+        else
+          ..._controller.professors.map((professor) => _buildProfessorRow(professor, theme)),
+      ],
+    );
+  }
+
+  Widget _buildTableHeader(ThemeData theme) {
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.05),
         border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
       ),
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Name')),
-          DataColumn(label: Text('Email')),
-          DataColumn(label: Text('Actions')),
+      child: const Row(
+        children: [
+          Expanded(flex: 4, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 4, child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
         ],
-        rows: _controller.professors.map((professor) {
-          return _buildProfessorRow(professor, theme);
-        }).toList(),
       ),
     );
   }
 
-  DataRow _buildProfessorRow(User professor, ThemeData theme) {
-    return DataRow(
-      cells: [
-        DataCell(Text(professor.fullName)),
-        DataCell(Text(professor.email)),
-        DataCell(
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.edit, color: theme.colorScheme.primary),
-                onPressed: () => _showEditDialog(professor),
-              ),
-              IconButton(
-                icon: Icon(
-                  professor.isBanned ? Icons.restore : Icons.block,
-                  color: professor.isBanned ? Colors.green : Colors.red,
-                ),
-                onPressed: () async {
-                  if (professor.isBanned) {
-                    final confirmed = await AppDialog.showConfirmDialog(
-                      context: context,
-                      title: 'Unban User',
-                      content: 'Are you sure you want to unban ${professor.fullName}?',
-                      icon: Icons.restore,
-                      confirmColor: Colors.green,
-                    );
-                    if (confirmed == true) {
-                      _controller.unbanUser(professor.userId, 'professor');
-                    }
-                  } else {
-                    final confirmed = await AppDialog.showConfirmDialog(
-                      context: context,
-                      title: 'Ban User',
-                      content: 'Are you sure you want to ban ${professor.fullName}?',
-                      icon: Icons.block,
-                      confirmColor: Colors.red,
-                    );
-                    if (confirmed == true) {
-                      _controller.banUser(professor.userId, 'professor');
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(48),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
         ),
-      ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.person_outline,
+            size: 64,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No professors found',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfessorRow(User professor, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Colors.grey[300]!),
+          right: BorderSide(color: Colors.grey[300]!),
+          bottom: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 4,
+            child: Text(
+              professor.fullName,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              professor.email,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit, color: theme.colorScheme.primary),
+                  onPressed: () => _showEditDialog(professor),
+                ),
+                IconButton(
+                  icon: Icon(
+                    professor.isBanned ? Icons.restore : Icons.block,
+                    color: professor.isBanned ? Colors.green : Colors.red,
+                  ),
+                  onPressed: () async {
+                    if (professor.isBanned) {
+                      final confirmed = await AppDialog.showConfirmDialog(
+                        context: context,
+                        title: 'Unban User',
+                        content: 'Are you sure you want to unban ${professor.fullName}?',
+                        icon: Icons.restore,
+                        confirmColor: Colors.green,
+                      );
+                      if (confirmed == true) {
+                        _controller.unbanUser(professor.userId, 'professor');
+                      }
+                    } else {
+                      final confirmed = await AppDialog.showConfirmDialog(
+                        context: context,
+                        title: 'Ban User',
+                        content: 'Are you sure you want to ban ${professor.fullName}?',
+                        icon: Icons.block,
+                        confirmColor: Colors.red,
+                      );
+                      if (confirmed == true) {
+                        _controller.banUser(professor.userId, 'professor');
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -391,15 +458,22 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         return;
       }
 
+      setState(() {
+        _isCreating = true;
+      });
+
       final success = await _controller.createUser(
         firstName: _firstNameController.text,
-        middleName: _middleNameController.text,
         lastName: _lastNameController.text,
         email: _emailController.text,
         phone: _phoneController.text,
         password: _passwordController.text,
         userType: 'professor',
       );
+
+      setState(() {
+        _isCreating = false;
+      });
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -409,7 +483,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         // Clear form
         _formKey.currentState!.reset();
         _firstNameController.clear();
-        _middleNameController.clear();
         _lastNameController.clear();
         _emailController.clear();
         _phoneController.clear();
@@ -422,7 +495,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   void _showEditDialog(User professor) {
     final editFirstNameController = TextEditingController(text: professor.firstName);
     final editLastNameController = TextEditingController(text: professor.lastName);
-    final editMiddleNameController = TextEditingController(text: professor.middleName ?? '');
     final editEmailController = TextEditingController(text: professor.email);
     final editPhoneController = TextEditingController(text: professor.phone ?? '');
     final editFormKey = GlobalKey<FormState>();
@@ -457,15 +529,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                             label: 'Last Name *',
                             icon: Icons.person_outline,
                             validator: _controller.validateLastName,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildFormField(
-                            controller: editMiddleNameController,
-                            label: 'Middle Name',
-                            icon: Icons.person_outline,
-                            validator: (_) => null,
                           ),
                         ),
                       ],
@@ -516,9 +579,6 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                         final updatedUser = professor.copyWith(
                           firstName: editFirstNameController.text,
                           lastName: editLastNameController.text,
-                          middleName: editMiddleNameController.text.isEmpty
-                              ? null
-                              : editMiddleNameController.text,
                           email: editEmailController.text,
                           phone: editPhoneController.text.isEmpty
                               ? null

@@ -15,7 +15,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _middleNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -37,7 +36,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
     _controller.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _middleNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -152,15 +150,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                         validator: (_) => null,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildFormField(
-                        controller: _middleNameController,
-                        label: 'Middle Name',
-                        icon: Icons.person_outline,
-                        validator: (_) => null,
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -191,8 +180,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    const Expanded(child: SizedBox.shrink()),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -306,26 +293,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
     );
   }
 
-  Widget _buildPhoneField({
-    required TextEditingController controller,
-    required String label,
-    required TextInputType keyboardType,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.phone),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-      ),
-      keyboardType: keyboardType,
-    );
-  }
-
   Widget _buildExistingStudentsSection(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -358,74 +325,147 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
   }
 
   Widget _buildStudentsTable(ThemeData theme) {
+    return Column(
+      children: [
+        _buildTableHeader(theme),
+        if (_controller.students.isEmpty)
+          _buildEmptyState()
+        else
+          ..._controller.students.map((student) => _buildStudentRow(student, theme)),
+      ],
+    );
+  }
+
+  Widget _buildTableHeader(ThemeData theme) {
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.05),
         border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
       ),
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Name')),
-          DataColumn(label: Text('Email')),
-          DataColumn(label: Text('Phone')),
-          DataColumn(label: Text('Actions')),
+      child: const Row(
+        children: [
+          Expanded(flex: 3, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 3, child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Phone', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
         ],
-        rows: _controller.students.map((student) {
-          return _buildStudentRow(student, theme);
-        }).toList(),
       ),
     );
   }
 
-  DataRow _buildStudentRow(User student, ThemeData theme) {
-    return DataRow(
-      cells: [
-        DataCell(Text(student.fullName)),
-        DataCell(Text(student.email)),
-        DataCell(Text(student.phone ?? 'N/A')),
-        DataCell(
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.edit, color: theme.colorScheme.primary),
-                onPressed: () => _showEditDialog(student),
-              ),
-              IconButton(
-                icon: Icon(
-                  student.isBanned ? Icons.restore : Icons.block,
-                  color: student.isBanned ? Colors.green : Colors.red,
-                ),
-                onPressed: () async {
-                  if (student.isBanned) {
-                    final confirmed = await AppDialog.showConfirmDialog(
-                      context: context,
-                      title: 'Unban User',
-                      content: 'Are you sure you want to unban ${student.fullName}?',
-                      icon: Icons.restore,
-                      confirmColor: Colors.green,
-                    );
-                    if (confirmed == true) {
-                      _controller.unbanUser(student.userId, 'student');
-                    }
-                  } else {
-                    final confirmed = await AppDialog.showConfirmDialog(
-                      context: context,
-                      title: 'Ban User',
-                      content: 'Are you sure you want to ban ${student.fullName}?',
-                      icon: Icons.block,
-                      confirmColor: Colors.red,
-                    );
-                    if (confirmed == true) {
-                      _controller.banUser(student.userId, 'student');
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(48),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
         ),
-      ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.person_outline,
+            size: 64,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No students found',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentRow(User student, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Colors.grey[300]!),
+          right: BorderSide(color: Colors.grey[300]!),
+          bottom: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              student.fullName,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              student.email,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              student.phone ?? 'N/A',
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit, color: theme.colorScheme.primary),
+                  onPressed: () => _showEditDialog(student),
+                ),
+                IconButton(
+                  icon: Icon(
+                    student.isBanned ? Icons.restore : Icons.block,
+                    color: student.isBanned ? Colors.green : Colors.red,
+                  ),
+                  onPressed: () async {
+                    if (student.isBanned) {
+                      final confirmed = await AppDialog.showConfirmDialog(
+                        context: context,
+                        title: 'Unban User',
+                        content: 'Are you sure you want to unban ${student.fullName}?',
+                        icon: Icons.restore,
+                        confirmColor: Colors.green,
+                      );
+                      if (confirmed == true) {
+                        _controller.unbanUser(student.userId, 'student');
+                      }
+                    } else {
+                      final confirmed = await AppDialog.showConfirmDialog(
+                        context: context,
+                        title: 'Ban User',
+                        content: 'Are you sure you want to ban ${student.fullName}?',
+                        icon: Icons.block,
+                        confirmColor: Colors.red,
+                      );
+                      if (confirmed == true) {
+                        _controller.banUser(student.userId, 'student');
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -450,7 +490,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       final success = await _controller.createUser(
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
-        middleName: _middleNameController.text,
         email: _emailController.text,
         phone: _phoneController.text,
         password: _passwordController.text,
@@ -470,7 +509,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         _formKey.currentState!.reset();
         _firstNameController.clear();
         _lastNameController.clear();
-        _middleNameController.clear();
         _emailController.clear();
         _phoneController.clear();
         _passwordController.clear();
@@ -486,7 +524,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
   void _showEditDialog(User student) {
     final editFirstNameController = TextEditingController(text: student.firstName);
     final editLastNameController = TextEditingController(text: student.lastName);
-    final editMiddleNameController = TextEditingController(text: student.middleName ?? '');
     final editEmailController = TextEditingController(text: student.email);
     final editPhoneController = TextEditingController(text: student.phone ?? '');
     final editFormKey = GlobalKey<FormState>();
@@ -521,15 +558,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                             label: 'Last Name *',
                             icon: Icons.person_outline,
                             validator: _controller.validateLastName,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildFormField(
-                            controller: editMiddleNameController,
-                            label: 'Middle Name',
-                            icon: Icons.person_outline,
-                            validator: (_) => null,
                           ),
                         ),
                       ],
@@ -580,9 +608,6 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                         final updatedUser = student.copyWith(
                           firstName: editFirstNameController.text,
                           lastName: editLastNameController.text,
-                          middleName: editMiddleNameController.text.isEmpty
-                              ? null
-                              : editMiddleNameController.text,
                           email: editEmailController.text,
                           phone: editPhoneController.text.isEmpty
                               ? null

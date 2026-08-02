@@ -29,6 +29,11 @@ final navigationItems = [
     icon: Icons.dashboard,
   ),
   NavigationItem(
+    title: 'Audit Logs',
+    type: NavigationItemType.audit,
+    icon: Icons.history,
+  ),
+  NavigationItem(
     title: 'Reservations',
     type: NavigationItemType.reservations,
     icon: Icons.calendar_month,
@@ -82,6 +87,11 @@ final navigationItems = [
     type: NavigationItemType.userManagement,
     icon: Icons.people,
     subItems: [
+      NavigationItem(
+        title: 'Accounts Approvals',
+        type: NavigationItemType.userManagement,
+        icon: Icons.approval,
+      ),
       NavigationItem(
         title: 'Manage Professors',
         type: NavigationItemType.userManagement,

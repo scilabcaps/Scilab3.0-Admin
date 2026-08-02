@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/api/supabase_client.dart';
 import '../../../core/service/cache_service.dart';
-import '../models/dashboard_model.dart';
+import '../models/dashboard_model.dart' show DashboardStats, CourseReservationData, BorrowedItem, RecentActivity;
 
 class DashboardService {
   final SupabaseClient _client = SupabaseService.database;
@@ -117,92 +117,65 @@ class DashboardService {
     }
   }
 
-  Future<List<ReservationDataPoint>> getReservationTrends() async {
-    final cacheKey = 'dashboard_reservation_trends';
+  Future<List<CourseReservationData>> getTopCourses() async {
+    final cacheKey = 'dashboard_top_courses';
     
     // Try to get from cache first
-    final cachedTrends = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedTrends != null) {
-      return cachedTrends.map((data) => ReservationDataPoint(
-        day: data['day'] as String,
-        total: data['total'] as double,
-        approved: data['approved'] as double,
-        pending: data['pending'] as double,
+    final cachedCourses = _cache.get<List<Map<String, dynamic>>>(cacheKey);
+    if (cachedCourses != null) {
+      return cachedCourses.map((data) => CourseReservationData(
+        course: data['course'] as String,
+        reservationCount: data['reservation_count'] as int,
+        month: data['month'] as String,
       )).toList();
     }
 
     try {
-      // Get reservations for the last 7 days
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      
+      // Get all reservations with course column directly
       final response = await _client
           .from('reservations')
-          .select('reservation_date, status')
-          .gte('reservation_date', sevenDaysAgo.toIso8601String())
-          .eq('is_deleted', false)
-          .order('reservation_date', ascending: true);
+          .select('course')
+          .eq('is_deleted', false);
 
-      // Group by day and count approved/pending
-      Map<String, ReservationDataPoint> dailyData = {};
-      
-      final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      final now = DateTime.now();
-      
-      // Initialize last 7 days
-      for (int i = 6; i >= 0; i--) {
-        final date = now.subtract(Duration(days: i));
-        final dayName = days[date.weekday - 1];
-        dailyData[dayName] = ReservationDataPoint(
-          day: dayName,
-          total: 0,
-          approved: 0,
-          pending: 0,
-        );
-      }
+      // Group by course name and count reservations
+      final Map<String, int> courseCounts = {};
 
-      // Count reservations per day
       for (var res in response) {
-        final date = DateTime.parse(res['reservation_date']);
-        final dayName = days[date.weekday - 1];
-        
-        if (dailyData.containsKey(dayName)) {
-          final current = dailyData[dayName]!;
-          dailyData[dayName] = ReservationDataPoint(
-            day: dayName,
-            total: current.total + 1,
-            approved: res['status'] == 'Approved' ? current.approved + 1 : current.approved,
-            pending: res['status'] == 'Pending' ? current.pending + 1 : current.pending,
-          );
+        // Get course directly from reservations table
+        String course;
+        if (res['course'] != null && res['course'].toString().trim().isNotEmpty) {
+          course = res['course'].toString();
+        } else {
+          course = 'Unknown';
         }
+
+        courseCounts[course] = (courseCounts[course] ?? 0) + 1;
       }
 
-      // Normalize to 0-1 range for chart
-      final maxTotal = dailyData.values.map((e) => e.total).fold<double>(0, (a, b) => b > a ? b : a);
-      
-      final trends = dailyData.values.map((data) {
-        final normalizedTotal = maxTotal > 0 ? data.total / maxTotal : 0.0;
-        final normalizedApproved = maxTotal > 0 ? data.approved / maxTotal : 0.0;
-        final normalizedPending = maxTotal > 0 ? data.pending / maxTotal : 0.0;
-        
-        return ReservationDataPoint(
-          day: data.day,
-          total: normalizedTotal,
-          approved: normalizedApproved,
-          pending: normalizedPending,
+      // Convert to list and sort by count (descending)
+      final sortedCourses = courseCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      // Take top 10 courses
+      final now = DateTime.now();
+      final topCourses = sortedCourses.take(10).map((entry) {
+        return CourseReservationData(
+          course: entry.key,
+          reservationCount: entry.value,
+          month: '${now.year}-${now.month.toString().padLeft(2, '0')}',
         );
       }).toList();
 
-      // Cache the result with 15 minute TTL (trends change less frequently)
-      await _cache.set(cacheKey, trends.map((data) => {
-        'day': data.day,
-        'total': data.total,
-        'approved': data.approved,
-        'pending': data.pending,
+      // Cache the result with 15 minute TTL
+      await _cache.set(cacheKey, topCourses.map((data) => {
+        'course': data.course,
+        'reservation_count': data.reservationCount,
+        'month': data.month,
       }).toList(), ttlMinutes: 15);
 
-      return trends;
+      return topCourses;
     } catch (e) {
-      throw Exception('Failed to fetch reservation trends: $e');
+      throw Exception('Failed to fetch top courses: $e');
     }
   }
 
@@ -377,6 +350,8 @@ class DashboardService {
   /// Clear all dashboard cache
   Future<void> clearCache() async {
     await _cache.remove('dashboard_stats');
+    // Clear top courses cache too (key used: 'dashboard_top_courses')
+    await _cache.remove('dashboard_top_courses');
     await _cache.remove('dashboard_reservation_trends');
     await _cache.remove('dashboard_borrowed_items');
     await _cache.remove('dashboard_recent_activities');

@@ -6,10 +6,14 @@ class ProfessorReservationService {
   final SupabaseClient _client = Supabase.instance.client;
   final CacheService _cache = CacheService();
 
-  /// Fetch all professor reservations with user information
-  Future<List<ProfessorReservation>> fetchProfessorReservations() async {
+  /// Fetch professor reservations with pagination
+  Future<List<ProfessorReservation>> fetchProfessorReservations({int page = 1, int limit = 20}) async {
     try {
-      // Fetch all reservations first without user_info relation
+      final start = (page - 1) * limit;
+      final end = start + limit - 1;
+
+      // Fetch paginated reservations first without user_info relation
+      // Filter: show only where professor_approval='approved' and exclude 'unreturned', 'declined', and 'ongoing' status
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -19,8 +23,8 @@ class ProfessorReservationService {
             reservation_date,
             start_time,
             end_time,
-            year,
-            section,
+            year_section,
+            course,
             professor,
             professor_approval,
             admin_approval,
@@ -29,7 +33,10 @@ class ProfessorReservationService {
             created_at,
             updated_at
           ''')
-          .order('created_at', ascending: false);
+          .eq('professor_approval', 'Approved')
+          .not('status', 'in', ['Unreturned', 'Declined', 'Ongoing'])
+          .order('created_at', ascending: false)
+          .range(start, end);
 
       print('Fetched ${reservationsResponse.length} reservations from database');
 
@@ -38,7 +45,7 @@ class ProfessorReservationService {
           .map((r) => r['reservation_id'] as int)
           .toSet()
           .toList();
-      
+
       final Map<int, List<Map<String, dynamic>>> itemsMap = {};
       if (reservationIds.isNotEmpty) {
         final itemsResponse = await _client
@@ -62,16 +69,59 @@ class ProfessorReservationService {
         }
       }
 
+      // Fetch chemical usage with chemical info
+      final Map<int, List<Map<String, dynamic>>> chemicalsMap = {};
+      if (reservationIds.isNotEmpty) {
+        final chemicalsResponse = await _client
+            .from('chemical_usage')
+            .select('''
+              usage_id,
+              reservation_id,
+              chemical_id,
+              quantity_used,
+              unit,
+              purpose,
+              chemicals (
+                chemical_id,
+                chemical_name
+              )
+            ''')
+            .inFilter('reservation_id', reservationIds)
+            .eq('is_deleted', false);
+
+        for (var chem in chemicalsResponse) {
+          final reservationId = chem['reservation_id'] as int;
+          chemicalsMap.putIfAbsent(reservationId, () => []).add(chem);
+        }
+      }
+
       // Fetch user info for all users
       final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
       final Map<String, Map<String, dynamic>> userInfoMap = {};
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
             .from('user_info')
-            .select('id, username, email, first_name, last_name, middle_name, role')
+            .select('id, username, email, first_name, last_name, role')
             .inFilter('id', userIds);
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
+        }
+      }
+
+      // Fetch room names
+      final roomIds = reservationsResponse
+          .where((r) => r['room_id'] != null)
+          .map((r) => r['room_id'] as int)
+          .toSet()
+          .toList();
+      final Map<int, String> roomNameMap = {};
+      if (roomIds.isNotEmpty) {
+        final roomsResponse = await _client
+            .from('rooms')
+            .select('room_id, room_name')
+            .inFilter('room_id', roomIds);
+        for (var room in roomsResponse) {
+          roomNameMap[room['room_id'] as int] = room['room_name'] as String;
         }
       }
 
@@ -89,7 +139,7 @@ class ProfessorReservationService {
 
         // Format professor name - use the professor field directly
         String professorName = reservation['professor']?.toString() ?? '';
-        if (professorName.isEmpty && userInfo != null) {
+        if (professorName.isEmpty) {
           final firstName = userInfo['first_name'] ?? '';
           final lastName = userInfo['last_name'] ?? '';
           professorName = firstName.isNotEmpty || lastName.isNotEmpty
@@ -106,11 +156,37 @@ class ProfessorReservationService {
         final endTime = reservation['end_time'];
         final formattedTime = _formatTimeSchedule(startTime, endTime);
 
-        // Format resources from items
-        String resources = '';
+        // Format resources: room, chemicals, and items
+        List<String> resourceParts = [];
+
+        // Room
+        if (reservation['room_id'] != null) {
+          final roomName = roomNameMap[reservation['room_id'] as int] ?? 'Room';
+          resourceParts.add('Room: $roomName');
+        }
+
+        // Chemicals
+        if (chemicalsMap.containsKey(reservationId) && chemicalsMap[reservationId]!.isNotEmpty) {
+          final chems = chemicalsMap[reservationId]!;
+          final chemList = chems.map((chem) {
+            final chemical = chem['chemicals'];
+            if (chemical != null) {
+              final name = chemical['chemical_name'] ?? '';
+              final qty = chem['quantity_used'] ?? '';
+              final unit = chem['unit'] ?? '';
+              return '$name $qty$unit'.trim();
+            }
+            return '';
+          }).where((s) => s.isNotEmpty).join(', ');
+          if (chemList.isNotEmpty) {
+            resourceParts.add('Chemicals: $chemList');
+          }
+        }
+
+        // Items/Assets
         if (itemsMap.containsKey(reservationId) && itemsMap[reservationId]!.isNotEmpty) {
           final items = itemsMap[reservationId]!;
-          final resourceList = items.map((item) {
+          final itemList = items.map((item) {
             final asset = item['lab_assets'];
             if (asset != null) {
               final itemName = asset['item_name'] ?? '';
@@ -119,8 +195,12 @@ class ProfessorReservationService {
             }
             return '';
           }).where((s) => s.isNotEmpty).join(', ');
-          resources = resourceList;
+          if (itemList.isNotEmpty) {
+            resourceParts.add('Items: $itemList');
+          }
         }
+
+        String resources = resourceParts.isEmpty ? '' : resourceParts.join('\n');
 
         // Format last updated
         final updatedAt = reservation['updated_at'];
@@ -138,6 +218,7 @@ class ProfessorReservationService {
           resources: resources,
           additionalNote: reservation['additional_note']?.toString() ?? '',
           professorApproval: profApproval,
+          status: reservation['status']?.toString() ?? 'Pending',
           lastUpdated: formattedLastUpdated,
         ));
       }
@@ -178,6 +259,58 @@ class ProfessorReservationService {
       await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to update professor approval: $e');
+    }
+  }
+
+  /// Count total professor reservations (for pagination)
+  Future<int> countProfessorReservations() async {
+    try {
+      final response = await _client
+          .from('reservations')
+          .select('reservation_id')
+          .eq('professor_approval', 'Approved')
+          .not('status', 'in', ['unreturned', 'declined', 'ongoing'])
+          .count();
+      return response.count;
+    } catch (e) {
+      print('Error counting professor reservations: $e');
+      return 0;
+    }
+  }
+
+  /// Approve reservation: admin_approval = 'Approved', status = 'Ongoing'
+  Future<void> approveReservation(int reservationId) async {
+    try {
+      await _client
+          .from('reservations')
+          .update({
+            'admin_approval': 'Approved',
+            'status': 'Ongoing',
+          })
+          .eq('reservation_id', reservationId);
+
+      await _cache.remove('dashboard_stats');
+      await _cache.remove('dashboard_recent_activities');
+    } catch (e) {
+      throw Exception('Failed to approve reservation: $e');
+    }
+  }
+
+  /// Reject reservation: admin_approval = 'Declined', status = 'Declined'
+  Future<void> rejectReservation(int reservationId) async {
+    try {
+      await _client
+          .from('reservations')
+          .update({
+            'admin_approval': 'Declined',
+            'status': 'Declined',
+          })
+          .eq('reservation_id', reservationId);
+
+      await _cache.remove('dashboard_stats');
+      await _cache.remove('dashboard_recent_activities');
+    } catch (e) {
+      throw Exception('Failed to reject reservation: $e');
     }
   }
 
