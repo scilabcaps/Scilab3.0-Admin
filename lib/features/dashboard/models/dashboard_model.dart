@@ -50,34 +50,30 @@ class DashboardStats {
   }
 }
 
-class ReservationDataPoint {
-  final String day;
-  final double total;
-  final double approved;
-  final double pending;
+class CourseReservationData {
+  final String course;
+  final int reservationCount;
+  final String month;
 
-  ReservationDataPoint({
-    required this.day,
-    required this.total,
-    required this.approved,
-    required this.pending,
+  CourseReservationData({
+    required this.course,
+    required this.reservationCount,
+    required this.month,
   });
 
-  factory ReservationDataPoint.fromJson(Map<String, dynamic> json) {
-    return ReservationDataPoint(
-      day: json['day'] ?? '',
-      total: (json['total'] ?? 0).toDouble(),
-      approved: (json['approved'] ?? 0).toDouble(),
-      pending: (json['pending'] ?? 0).toDouble(),
+  factory CourseReservationData.fromJson(Map<String, dynamic> json) {
+    return CourseReservationData(
+      course: json['course'] ?? '',
+      reservationCount: json['reservation_count'] ?? 0,
+      month: json['month'] ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'day': day,
-      'total': total,
-      'approved': approved,
-      'pending': pending,
+      'course': course,
+      'reservation_count': reservationCount,
+      'month': month,
     };
   }
 }

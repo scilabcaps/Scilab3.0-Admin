@@ -24,7 +24,7 @@ class _ReturnModalState extends State<ReturnModal> {
   @override
   void initState() {
     super.initState();
-    if (widget.reservation.items != null) {
+    if (widget.reservation.items?.isNotEmpty ?? false) {
       for (var item in widget.reservation.items!) {
         _quantityControllers[item.itemId] = TextEditingController(
           text: item.returnedQuantity.toString(),
@@ -41,15 +41,47 @@ class _ReturnModalState extends State<ReturnModal> {
     super.dispose();
   }
 
-  void _handleReturnItem(String itemId) {
+  void _handleReturnItem(String itemId) async {
     final controller = _quantityControllers[itemId];
     if (controller != null) {
       final returnedQuantity = int.tryParse(controller.text) ?? 0;
-      widget.controller.updateItemStatus(
-        widget.reservation.reservationId,
-        itemId,
-        returnedQuantity,
-      );
+      final item = widget.reservation.items?.firstWhere((i) => i.itemId == itemId);
+      
+      if (item != null) {
+        if (returnedQuantity >= item.quantity) {
+          // Full return
+          await widget.controller.returnItem(
+            widget.reservation.reservationId,
+            itemId,
+          );
+        } else if (returnedQuantity > item.returnedQuantity && returnedQuantity < item.quantity) {
+          // Partial return
+          final returnQuantity = returnedQuantity - item.returnedQuantity;
+          await widget.controller.returnPartialItem(
+            widget.reservation.reservationId,
+            itemId,
+            returnQuantity,
+          );
+        }
+        
+        setState(() {});
+      }
+    }
+  }
+
+  void _handleReturnAll() async {
+    if (widget.reservation.items?.isNotEmpty ?? false) {
+      for (var item in widget.reservation.items!) {
+        if (item.status.toLowerCase() != 'used' && 
+            item.returnedQuantity < item.quantity &&
+            item.assetId.isNotEmpty) {
+          await widget.controller.returnItem(
+            widget.reservation.reservationId,
+            item.itemId,
+          );
+        }
+      }
+      setState(() {});
     }
   }
 
@@ -74,8 +106,7 @@ class _ReturnModalState extends State<ReturnModal> {
                     children: [
                       _buildReservationInfo(),
                       const SizedBox(height: 20),
-                      if (widget.reservation.items != null &&
-                          widget.reservation.items!.isNotEmpty)
+                      if (widget.reservation.items?.isNotEmpty ?? false)
                         _buildItemsList()
                       else
                         const Text('No items in this reservation'),
@@ -227,43 +258,52 @@ class _ReturnModalState extends State<ReturnModal> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Return Quantity: '),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+          if (item.status.toLowerCase() != 'used')
+            Row(
+              children: [
+                const Text('Return Quantity: '),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () {
-                  _handleReturnItem(item.itemId);
-                  setState(() {});
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF31CB00),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    _handleReturnItem(item.itemId);
+                    setState(() {});
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF31CB00),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(5),
+                    ),
                   ),
+                  child: const Text('Return'),
                 ),
-                child: const Text('Return'),
+              ],
+            )
+          else
+            const Text(
+              'Chemical consumed — no return required',
+              style: TextStyle(
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -288,6 +328,12 @@ class _ReturnModalState extends State<ReturnModal> {
   }
 
   Widget _buildFooter() {
+    final hasReturnableItems = widget.reservation.items?.any((item) => 
+      item.status.toLowerCase() != 'used' && 
+      item.returnedQuantity < item.quantity &&
+      item.assetId.isNotEmpty
+    ) ?? false;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -298,8 +344,21 @@ class _ReturnModalState extends State<ReturnModal> {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          if (hasReturnableItems)
+            ElevatedButton(
+              onPressed: _handleReturnAll,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF31CB00),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              child: const Text('Return All'),
+            ),
+          const Spacer(),
           TextButton(
             onPressed: widget.onClose,
             child: const Text('Close'),

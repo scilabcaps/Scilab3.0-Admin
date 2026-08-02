@@ -2,15 +2,27 @@ import 'package:flutter/material.dart';
 import '../models/unreturned_item_model.dart';
 import '../../../../core/api/supabase_client.dart';
 import '../../../../core/api/supabase_config.dart';
+import '../../../audit/services/audit_service.dart';
 
 class UnreturnedItemController extends ChangeNotifier {
+  final AuditService _auditService = AuditService();
   List<UnreturnedItem> _unreturnedItems = [];
   String _selectedTab = 'all'; // 'all', 'students', 'professors'
   String _searchTerm = '';
+  String? _selectedCategory; // null = all
+  String _selectedDueDateFilter = 'all'; // 'all', 'overdue', 'today', 'this_week', 'next_week'
 
   List<UnreturnedItem> get unreturnedItems => _unreturnedItems;
   String get selectedTab => _selectedTab;
   String get searchTerm => _searchTerm;
+  String? get selectedCategory => _selectedCategory;
+  String get selectedDueDateFilter => _selectedDueDateFilter;
+
+  List<String> get categories {
+    final cats = _unreturnedItems.map((i) => i.itemType).toSet().toList();
+    cats.sort();
+    return cats;
+  }
 
   List<UnreturnedItem> get filteredItems {
     return _unreturnedItems.where((item) {
@@ -21,8 +33,19 @@ class UnreturnedItemController extends ChangeNotifier {
       };
       final matchesSearch = item.itemName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
           item.borrowerName.toLowerCase().contains(_searchTerm.toLowerCase());
-      return matchesTab && matchesSearch;
+
+      final matchesCategory = _selectedCategory == null ||
+          item.itemType.toLowerCase() == _selectedCategory!.toLowerCase();
+
+      final matchesDueDate = _matchesDueDateFilter(item);
+
+      return matchesTab && matchesSearch && matchesCategory && matchesDueDate;
     }).toList();
+  }
+
+  bool _matchesDueDateFilter(UnreturnedItem item) {
+    // Due date column doesn't exist in database, so always return true
+    return true;
   }
 
   Map<String, List<UnreturnedItem>> get itemsByBorrower {
@@ -115,12 +138,38 @@ class UnreturnedItemController extends ChangeNotifier {
               category
             )
           ''')
+          .inFilter('reservations.status', ['Unreturned', 'Partially Returned'])
           .eq('is_returned', false)
           .order('reservation_date', referencedTable: 'reservations');
 
       final List<UnreturnedItem> items = [];
       debugPrint('Total reservation_items fetched: ${response.length}');
 
+      // Collect all unique user IDs first
+      final Set<String> userIds = {};
+      for (final item in response) {
+        final reservation = item['reservations'] as Map<String, dynamic>?;
+        final userId = reservation?['user_id'] as String?;
+        if (userId != null) {
+          userIds.add(userId);
+        }
+      }
+
+      // Fetch all user info in a single batch query
+      final Map<String, Map<String, dynamic>> userInfoMap = {};
+      if (userIds.isNotEmpty) {
+        final usersResponse = await SupabaseService.database
+            .from(SupabaseConfig.tableUserInfo)
+            .select('id, first_name, last_name, role')
+            .inFilter('id', userIds.toList());
+        
+        for (var user in usersResponse) {
+          userInfoMap[user['id'] as String] = user;
+        }
+        debugPrint('Fetched ${userInfoMap.length} user info records');
+      }
+
+      // Now process items with the user info map
       for (final item in response) {
         final reservation = item['reservations'] as Map<String, dynamic>?;
         final labAsset = item['lab_assets'] as Map<String, dynamic>?;
@@ -131,23 +180,18 @@ class UnreturnedItemController extends ChangeNotifier {
         String borrowerType = 'Unknown';
         String borrowerId = 'Unknown';
 
-        // Try to fetch user info if userId exists
-        if (userId != null) {
-          final userInfoResponse = await SupabaseService.database
-              .from(SupabaseConfig.tableUserInfo)
-              .select('id, first_name, last_name, role')
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (userInfoResponse != null) {
-            borrowerName = '${userInfoResponse['first_name'] ?? ''} ${userInfoResponse['last_name'] ?? ''}'.trim();
-            borrowerType = userInfoResponse['role'] ?? 'Unknown';
-            borrowerId = userInfoResponse['id']?.toString() ?? 'Unknown';
-          } else {
-            debugPrint('User info not found for userId: $userId');
+        // Try to get user info from the map
+        if (userId != null && userInfoMap.containsKey(userId)) {
+          final userInfo = userInfoMap[userId]!;
+          borrowerName = '${userInfo['first_name'] ?? ''} ${userInfo['last_name'] ?? ''}'.trim();
+          borrowerType = userInfo['role'] ?? 'Unknown';
+          borrowerId = userInfo['id']?.toString() ?? 'Unknown';
+          
+          if (borrowerName.isEmpty) {
+            borrowerName = 'Unknown Borrower';
           }
         } else {
-          debugPrint('userId is null for reservation ${reservation?['reservation_id']}');
+          debugPrint('User info not found for userId: $userId');
         }
 
         final borrowedQuantity = item['quantity_borrowed'] as int? ?? 0;
@@ -171,6 +215,7 @@ class UnreturnedItemController extends ChangeNotifier {
             returnedQuantity: returnedQuantity,
             unreturnedQuantity: unreturnedQuantity,
             reservationDate: reservation?['reservation_date'] ?? 'Unknown Date',
+            dueDate: null, // due_date column doesn't exist in reservations table
           ));
         }
       }
@@ -261,6 +306,16 @@ class UnreturnedItemController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedCategory(String? category) {
+    _selectedCategory = category;
+    notifyListeners();
+  }
+
+  void setSelectedDueDateFilter(String filter) {
+    _selectedDueDateFilter = filter;
+    notifyListeners();
+  }
+
   Future<void> returnItem(String detailId, String borrowerId) async {
     try {
       final index = _unreturnedItems.indexWhere(
@@ -313,6 +368,60 @@ class UnreturnedItemController extends ChangeNotifier {
                 'changed_by': SupabaseService.auth.currentUser?.id,
               });
 
+          // Try to get accurate borrower info for audit log
+          String auditBorrowerName = item.borrowerName;
+          if (auditBorrowerName == 'Unknown Borrower' || auditBorrowerName.isEmpty) {
+            try {
+              // First try to get user info from user_info table
+              final userInfo = await SupabaseService.database
+                  .from(SupabaseConfig.tableUserInfo)
+                  .select('first_name, last_name')
+                  .eq('id', borrowerId)
+                  .maybeSingle();
+              
+              if (userInfo != null) {
+                final firstName = userInfo['first_name'] as String? ?? '';
+                final lastName = userInfo['last_name'] as String? ?? '';
+                auditBorrowerName = '$firstName $lastName'.trim();
+                if (auditBorrowerName.isEmpty) {
+                  auditBorrowerName = borrowerId; // Fallback to ID if name is empty
+                }
+              } else {
+                // If user not found in user_info, try to get from reservation
+                final reservation = await SupabaseService.database
+                    .from(SupabaseConfig.tableReservations)
+                    .select('professor')
+                    .eq('reservation_id', int.parse(item.reservationId))
+                    .maybeSingle();
+                
+                if (reservation != null && reservation['professor'] != null) {
+                  auditBorrowerName = reservation['professor'].toString();
+                } else {
+                  auditBorrowerName = borrowerId; // Final fallback to ID
+                }
+              }
+            } catch (e) {
+              debugPrint('Error fetching user info for audit log: $e');
+              auditBorrowerName = borrowerId; // Fallback to ID on error
+            }
+          }
+
+          // Log audit action for item return
+          await _auditService.logAction(
+            actionType: 'RETURN',
+            entityType: 'reservation_item',
+            entityId: detailId,
+            oldValues: {
+              'quantity_returned': item.returnedQuantity,
+              'is_returned': false,
+            },
+            newValues: {
+              'quantity_returned': newReturnedQuantity,
+              'is_returned': true,
+            },
+            description: 'Marked item as returned: ${item.itemName} (Borrower: $auditBorrowerName, Qty: ${item.unreturnedQuantity})',
+          );
+
           _unreturnedItems[index] = item.copyWith(
             returnedQuantity: newReturnedQuantity,
             unreturnedQuantity: 0,
@@ -324,10 +433,42 @@ class UnreturnedItemController extends ChangeNotifier {
             _unreturnedItems.removeAt(index);
           }
           notifyListeners();
+
+          // Check if all items in the reservation are returned and update status
+          await _checkAndUpdateReservationStatus(item.reservationId);
         }
       }
     } catch (e) {
       debugPrint('Error returning item: $e');
+    }
+  }
+
+  Future<void> _checkAndUpdateReservationStatus(String reservationId) async {
+    try {
+      // Fetch all items for this reservation
+      final reservationItems = await SupabaseService.database
+          .from(SupabaseConfig.tableReservationItems)
+          .select('*')
+          .eq('reservation_id', int.parse(reservationId));
+
+      // Check if all items are returned
+      final allReturned = reservationItems.every((item) {
+        final borrowed = item['quantity_borrowed'] as int? ?? 0;
+        final returned = item['quantity_returned'] as int? ?? 0;
+        final isReturned = item['is_returned'] as bool? ?? false;
+        return isReturned && returned >= borrowed;
+      });
+
+      if (allReturned && reservationItems.isNotEmpty) {
+        // Update reservation status to Completed
+        await SupabaseService.database
+            .from(SupabaseConfig.tableReservations)
+            .update({'status': 'Completed'})
+            .eq('reservation_id', int.parse(reservationId));
+        debugPrint('Reservation $reservationId status updated to Completed');
+      }
+    } catch (e) {
+      debugPrint('Error checking and updating reservation status: $e');
     }
   }
 
@@ -379,6 +520,58 @@ class UnreturnedItemController extends ChangeNotifier {
                 'changed_by': SupabaseService.auth.currentUser?.id,
               });
 
+          // Try to get accurate borrower info for audit log
+          String auditBorrowerName = item.borrowerName;
+          if (auditBorrowerName == 'Unknown Borrower' || auditBorrowerName.isEmpty) {
+            try {
+              // First try to get user info from user_info table
+              final userInfo = await SupabaseService.database
+                  .from(SupabaseConfig.tableUserInfo)
+                  .select('first_name, last_name')
+                  .eq('id', borrowerId)
+                  .maybeSingle();
+              
+              if (userInfo != null) {
+                final firstName = userInfo['first_name'] as String? ?? '';
+                final lastName = userInfo['last_name'] as String? ?? '';
+                auditBorrowerName = '$firstName $lastName'.trim();
+                if (auditBorrowerName.isEmpty) {
+                  auditBorrowerName = borrowerId; // Fallback to ID if name is empty
+                }
+              } else {
+                // If user not found in user_info, try to get from reservation
+                final reservation = await SupabaseService.database
+                    .from(SupabaseConfig.tableReservations)
+                    .select('professor')
+                    .eq('reservation_id', int.parse(item.reservationId))
+                    .maybeSingle();
+                
+                if (reservation != null && reservation['professor'] != null) {
+                  auditBorrowerName = reservation['professor'].toString();
+                } else {
+                  auditBorrowerName = borrowerId; // Final fallback to ID
+                }
+              }
+            } catch (e) {
+              debugPrint('Error fetching user info for audit log: $e');
+              auditBorrowerName = borrowerId; // Fallback to ID on error
+            }
+          }
+
+          // Log audit action for partial item return
+          await _auditService.logAction(
+            actionType: 'PARTIAL_RETURN',
+            entityType: 'reservation_item',
+            entityId: detailId,
+            oldValues: {
+              'quantity_returned': item.returnedQuantity,
+            },
+            newValues: {
+              'quantity_returned': item.returnedQuantity + quantity,
+            },
+            description: 'Partial return of item: ${item.itemName} (Borrower: $auditBorrowerName, Qty: $quantity)',
+          );
+
           _unreturnedItems[index] = item.copyWith(
             returnedQuantity: item.returnedQuantity + quantity,
             unreturnedQuantity: item.unreturnedQuantity - quantity,
@@ -390,6 +583,9 @@ class UnreturnedItemController extends ChangeNotifier {
             _unreturnedItems.removeAt(index);
           }
           notifyListeners();
+
+          // Check if all items in the reservation are returned and update status
+          await _checkAndUpdateReservationStatus(item.reservationId);
         }
       }
     } catch (e) {
@@ -400,4 +596,8 @@ class UnreturnedItemController extends ChangeNotifier {
   bool get hasUnreturnedItems => _unreturnedItems.isNotEmpty;
   bool get hasStudentUnreturnedItems => studentBorrowers.isNotEmpty;
   bool get hasProfessorUnreturnedItems => professorBorrowers.isNotEmpty;
+
+  void refresh() {
+    loadUnreturnedItems();
+  }
 }

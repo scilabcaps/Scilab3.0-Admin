@@ -59,16 +59,45 @@ class _InventoryPageState extends State<InventoryPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    ElevatedButton(
-                      onPressed: _generateReport,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF31CB00),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            _controller.refresh();
+                          },
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Refresh',
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF152614),
+                          ),
                         ),
-                      ),
-                      child: const Text('Generate Report'),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _showAddAssetDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Asset'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF31CB00),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _generateReport,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF31CB00),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Generate Report'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -281,6 +310,22 @@ class _InventoryPageState extends State<InventoryPage> {
             ),
             child: const Text('Update Stock'),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => _showEditAssetDialog(item),
+            icon: const Icon(Icons.edit, size: 20),
+            style: IconButton.styleFrom(
+              foregroundColor: const Color(0xFF31CB00),
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () => _showDeleteAssetDialog(item),
+            icon: const Icon(Icons.delete, size: 20),
+            style: IconButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+          ),
           const SizedBox(width: 12),
           _buildStatusBadge(item.status),
           if (item.stockLevel == 'Low') ...[
@@ -366,6 +411,356 @@ class _InventoryPageState extends State<InventoryPage> {
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+
+  void _showAddAssetDialog() {
+    final nameController = TextEditingController();
+    final quantityController = TextEditingController();
+    final categoryController = TextEditingController(text: 'Chemical');
+    final formulaController = TextEditingController();
+    final unitController = TextEditingController();
+    final conditionController = TextEditingController();
+    DateTime? expirationDate;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add New Asset'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: categoryController.text,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Chemical', child: Text('Chemical')),
+                    DropdownMenuItem(value: 'Equipment', child: Text('Equipment')),
+                    DropdownMenuItem(value: 'Glassware', child: Text('Glassware')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      categoryController.text = value ?? 'Chemical';
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Item Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (categoryController.text == 'Chemical') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: formulaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Formula (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: unitController.text.isEmpty ? 'mL' : unitController.text,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'mL', child: Text('mL')),
+                      DropdownMenuItem(value: 'g', child: Text('g')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        unitController.text = value ?? 'mL';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(const Duration(days: 365)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          expirationDate = picked;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Expiration (Optional)',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        expirationDate == null
+                            ? 'Select date'
+                            : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: expirationDate == null ? Colors.grey : Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: conditionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Condition Notes (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final quantity = int.tryParse(quantityController.text);
+                if (name.isNotEmpty && quantity != null) {
+                  final expirationStr = expirationDate == null
+                      ? null
+                      : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}';
+                  await _controller.addAsset(
+                    itemName: name,
+                    category: categoryController.text,
+                    quantity: quantity,
+                    formula: formulaController.text.trim().isEmpty ? null : formulaController.text.trim(),
+                    unit: unitController.text,
+                    expiration: expirationStr,
+                    conditionNotes: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
+                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Asset added successfully'),
+                      backgroundColor: Color(0xFF31CB00),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF31CB00),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditAssetDialog(InventoryItem item) {
+    final nameController = TextEditingController(text: item.itemName);
+    final quantityController = TextEditingController(text: item.quantity.toString());
+    final formulaController = TextEditingController(text: item.formula ?? '');
+    final unitController = TextEditingController(text: item.unit?.isNotEmpty == true ? item.unit : 'mL');
+    final conditionController = TextEditingController(text: item.conditionNotes ?? '');
+    DateTime? expirationDate;
+    if (item.expiration != null && item.expiration!.isNotEmpty && item.expiration != '-') {
+      try {
+        expirationDate = DateTime.parse(item.expiration!);
+      } catch (_) {}
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Asset'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Item Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (item.category.toLowerCase() == 'chemical') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: formulaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Formula (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: unitController.text.isEmpty ? 'mL' : unitController.text,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'mL', child: Text('mL')),
+                      DropdownMenuItem(value: 'g', child: Text('g')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        unitController.text = value ?? 'mL';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: expirationDate ?? DateTime.now().add(const Duration(days: 365)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          expirationDate = picked;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Expiration (Optional)',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        expirationDate == null
+                            ? 'Select date'
+                            : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: expirationDate == null ? Colors.grey : Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: conditionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Condition Notes (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final quantity = int.tryParse(quantityController.text);
+                if (name.isNotEmpty && quantity != null) {
+                  final expirationStr = expirationDate == null
+                      ? null
+                      : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}';
+                  await _controller.editAsset(
+                    itemId: item.itemId,
+                    category: item.category,
+                    itemName: name,
+                    quantity: quantity,
+                    formula: formulaController.text.trim().isEmpty ? null : formulaController.text.trim(),
+                    unit: unitController.text,
+                    expiration: expirationStr,
+                    conditionNotes: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
+                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Asset updated successfully'),
+                      backgroundColor: Color(0xFF31CB00),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF31CB00),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAssetDialog(InventoryItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Asset'),
+        content: Text('Are you sure you want to delete "${item.itemName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await _controller.deleteAsset(item.itemId, item.category);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Asset deleted successfully'),
+                  backgroundColor: Color(0xFF31CB00),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

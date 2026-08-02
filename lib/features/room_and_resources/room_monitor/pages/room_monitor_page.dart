@@ -53,13 +53,46 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Monitor Rooms',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E7D32),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Monitor Rooms',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          _controller.refresh();
+                        },
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Refresh',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF152614),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _showAddRoomDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Room'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF31CB00),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               _buildStatsCards(),
@@ -366,18 +399,41 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           ),
           const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Update Status:',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Update Status:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildStatusDropdown(room),
+                ],
               ),
-              const SizedBox(width: 12),
-              _buildStatusDropdown(room),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => _showEditRoomDialog(room),
+                    icon: const Icon(Icons.edit, size: 20),
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFF31CB00),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => _showDeleteRoomDialog(room),
+                    icon: const Icon(Icons.delete, size: 20),
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -504,6 +560,199 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
             }
           },
         ),
+      ),
+    );
+  }
+
+  void _showAddRoomDialog() {
+    final nameController = TextEditingController();
+    final capacityController = TextEditingController();
+    final statusController = TextEditingController(text: 'Available');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add New Room'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Room Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: capacityController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Capacity',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: 'Available',
+              decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Available',child: Text('Available')),
+                DropdownMenuItem(value: 'Occupied',child: Text('Occupied')),
+                DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
+              ],
+              onChanged: (value) => statusController.text = value ?? 'Available',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final capacity = int.tryParse(capacityController.text);
+              if (name.isNotEmpty && capacity != null) {
+                await _controller.addRoom(
+                  roomName: name,
+                  capacity: capacity,
+                  status: statusController.text,
+                );
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Room added successfully'),
+                    backgroundColor: Color(0xFF31CB00),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF31CB00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditRoomDialog(Room room) {
+    final nameController = TextEditingController(text: room.roomName);
+    final capacityController = TextEditingController(text: room.capacity.toString());
+    String selectedStatus = room.status;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Room'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Room Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: capacityController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Capacity',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: selectedStatus,
+              decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Available',child: Text('Available')),
+                DropdownMenuItem(value: 'Occupied',child: Text('Occupied')),
+                DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
+                DropdownMenuItem(value: 'Over Time',child: Text('Over Time')),
+              ],
+              onChanged: (value) => selectedStatus = value ?? 'Available',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final capacity = int.tryParse(capacityController.text);
+              if (name.isNotEmpty && capacity != null) {
+                await _controller.editRoom(
+                  roomId: room.roomId,
+                  roomName: name,
+                  capacity: capacity,
+                  status: selectedStatus,
+                );
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Room updated successfully'),
+                    backgroundColor: Color(0xFF31CB00),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF31CB00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteRoomDialog(Room room) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Room'),
+        content: Text('Are you sure you want to delete "${room.roomName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await _controller.deleteRoom(room.roomId);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Room deleted successfully'),
+                  backgroundColor: Color(0xFF31CB00),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

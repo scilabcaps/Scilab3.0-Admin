@@ -3,12 +3,14 @@ import '../models/inventory_model.dart';
 import '../../../../core/api/supabase_client.dart';
 import '../../../../core/api/supabase_config.dart';
 import '../../../../core/service/cache_service.dart';
+import '../../../audit/services/audit_service.dart';
 
 class InventoryController extends ChangeNotifier {
   List<InventoryItem> _inventoryItems = [];
   String _selectedTab = 'chemicals';
   String _searchTerm = '';
   final CacheService _cache = CacheService();
+  final AuditService _auditService = AuditService();
 
   List<InventoryItem> get inventoryItems => _inventoryItems;
   String get selectedTab => _selectedTab;
@@ -145,6 +147,7 @@ class InventoryController extends ChangeNotifier {
     }
     
     final item = _inventoryItems[index];
+    final oldQuantity = item.quantity;
     debugPrint('Item found: ${item.itemName}, category: ${item.category}');
       
     try {
@@ -180,6 +183,16 @@ class InventoryController extends ChangeNotifier {
       // Clear cache after stock update to ensure consistency
       await _cache.remove('inventory_items');
       debugPrint('Inventory cache cleared after stock update');
+
+      // Log audit action for manual stock adjustment
+      await _auditService.logAction(
+        actionType: 'UPDATE',
+        entityType: category.toLowerCase() == 'chemical' ? 'chemical' : 'asset',
+        entityId: itemId,
+        oldValues: {'quantity': oldQuantity},
+        newValues: {'quantity': newQuantity},
+        description: 'Manual stock adjustment for ${item.itemName}: $oldQuantity → $newQuantity',
+      );
     } catch (e) {
       debugPrint('Error updating stock: $e');
       debugPrint('Item details: itemId=$itemId, category=${item.category}');
@@ -190,6 +203,194 @@ class InventoryController extends ChangeNotifier {
     if (quantity <= 3) return 'Low';
     if (quantity <= 10) return 'Medium';
     return 'High';
+  }
+
+  Future<void> addAsset({
+    required String itemName,
+    required String category,
+    required int quantity,
+    String? formula,
+    String? unit,
+    String? expiration,
+    String? conditionNotes,
+  }) async {
+    try {
+      String? newItemId;
+      String entityType;
+
+      if (category.toLowerCase() == 'chemical') {
+        entityType = 'chemical';
+        final response = await SupabaseService.database
+            .from(SupabaseConfig.tableChemicals)
+            .insert({
+              'chemical_name': itemName,
+              'stock_quantity': quantity,
+              'formula': formula,
+              'unit': unit,
+              'expiration': expiration,
+            })
+            .select()
+            .single();
+
+        newItemId = response['chemical_id']?.toString();
+        final newItem = InventoryItem.fromJson(response);
+        _inventoryItems.add(newItem);
+      } else {
+        entityType = 'asset';
+        final response = await SupabaseService.database
+            .from(SupabaseConfig.tableLabAssets)
+            .insert({
+              'item_name': itemName,
+              'category': category,
+              'available_stock': quantity,
+              'total_stock': quantity,
+              'condition_notes': conditionNotes,
+            })
+            .select()
+            .single();
+
+        newItemId = response['asset_id']?.toString();
+        final newItem = InventoryItem.fromJson(response);
+        _inventoryItems.add(newItem);
+      }
+
+      // Log audit action for asset creation
+      if (newItemId != null) {
+        await _auditService.logAction(
+          actionType: 'CREATE',
+          entityType: entityType,
+          entityId: newItemId,
+          newValues: {
+            'name': itemName,
+            'category': category,
+            'quantity': quantity,
+          },
+          description: 'Created new $entityType: $itemName',
+        );
+      }
+
+      notifyListeners();
+
+      // Clear cache after adding an asset to ensure consistency
+      await _cache.remove('inventory_items');
+    } catch (e) {
+      debugPrint('Error adding asset: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> editAsset({
+    required String itemId,
+    required String category,
+    String? itemName,
+    int? quantity,
+    String? formula,
+    String? unit,
+    String? expiration,
+    String? conditionNotes,
+  }) async {
+    try {
+      final index = _inventoryItems.indexWhere((i) => i.itemId == itemId && i.category.toLowerCase() == category.toLowerCase());
+      if (index == -1) {
+        debugPrint('Item not found in inventory list with itemId=$itemId and category=$category');
+        return;
+      }
+
+      final item = _inventoryItems[index];
+
+      if (category.toLowerCase() == 'chemical') {
+        final updateData = <String, dynamic>{};
+        if (itemName != null) updateData['chemical_name'] = itemName;
+        if (quantity != null) updateData['stock_quantity'] = quantity;
+        if (formula != null) updateData['formula'] = formula;
+        if (unit != null) updateData['unit'] = unit;
+        if (expiration != null) updateData['expiration'] = expiration;
+
+        await SupabaseService.database
+            .from(SupabaseConfig.tableChemicals)
+            .update(updateData)
+            .eq('chemical_id', int.parse(itemId));
+      } else {
+        final updateData = <String, dynamic>{};
+        if (itemName != null) updateData['item_name'] = itemName;
+        if (quantity != null) {
+          updateData['available_stock'] = quantity;
+          updateData['total_stock'] = quantity;
+        }
+        if (conditionNotes != null) updateData['condition_notes'] = conditionNotes;
+
+        await SupabaseService.database
+            .from(SupabaseConfig.tableLabAssets)
+            .update(updateData)
+            .eq('asset_id', int.parse(itemId));
+      }
+
+      _inventoryItems[index] = item.copyWith(
+        itemName: itemName,
+        quantity: quantity ?? item.quantity,
+        stockLevel: quantity != null ? _calculateStockLevel(quantity) : item.stockLevel,
+        status: quantity == 0 ? 'Out of Stock' : 'Available',
+        totalStock: quantity,
+        formula: formula,
+        unit: unit,
+        expiration: expiration,
+        conditionNotes: conditionNotes,
+      );
+      notifyListeners();
+
+      // Clear cache after editing an asset to ensure consistency
+      await _cache.remove('inventory_items');
+    } catch (e) {
+      debugPrint('Error editing asset: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteAsset(String itemId, String category) async {
+    try {
+      final index = _inventoryItems.indexWhere((i) => i.itemId == itemId && i.category.toLowerCase() == category.toLowerCase());
+      if (index == -1) {
+        debugPrint('Item not found in inventory list with itemId=$itemId and category=$category');
+        return;
+      }
+
+      final item = _inventoryItems[index];
+      final entityType = category.toLowerCase() == 'chemical' ? 'chemical' : 'asset';
+
+      if (category.toLowerCase() == 'chemical') {
+        await SupabaseService.database
+            .from(SupabaseConfig.tableChemicals)
+            .delete()
+            .eq('chemical_id', int.parse(itemId));
+      } else {
+        await SupabaseService.database
+            .from(SupabaseConfig.tableLabAssets)
+            .delete()
+            .eq('asset_id', int.parse(itemId));
+      }
+
+      // Log audit action for asset deletion
+      await _auditService.logAction(
+        actionType: 'DELETE',
+        entityType: entityType,
+        entityId: itemId,
+        oldValues: {
+          'name': item.itemName,
+          'category': item.category,
+          'quantity': item.quantity,
+        },
+        description: 'Deleted $entityType: ${item.itemName}',
+      );
+
+      _inventoryItems.removeAt(index);
+      notifyListeners();
+
+      // Clear cache after deleting an asset to ensure consistency
+      await _cache.remove('inventory_items');
+    } catch (e) {
+      debugPrint('Error deleting asset: $e');
+      rethrow;
+    }
   }
 
   Color getStatusColor(String status) {
@@ -266,5 +467,9 @@ class InventoryController extends ChangeNotifier {
       default:
         return Colors.grey.shade700;
     }
+  }
+
+  void refresh() {
+    loadInventory();
   }
 }

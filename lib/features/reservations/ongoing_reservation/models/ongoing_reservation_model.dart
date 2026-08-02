@@ -86,6 +86,7 @@ class OngoingReservation {
 
 class ReservedItem {
   final String itemId;
+  final String assetId;
   final String itemName;
   final int quantity;
   final int returnedQuantity;
@@ -93,6 +94,7 @@ class ReservedItem {
 
   ReservedItem({
     required this.itemId,
+    required this.assetId,
     required this.itemName,
     required this.quantity,
     required this.returnedQuantity,
@@ -102,6 +104,7 @@ class ReservedItem {
   factory ReservedItem.fromJson(Map<String, dynamic> json) {
     return ReservedItem(
       itemId: json['item_id']?.toString() ?? '',
+      assetId: json['asset_id']?.toString() ?? '',
       itemName: json['item_name'] ?? '',
       quantity: json['quantity'] ?? 0,
       returnedQuantity: json['returned_quantity'] ?? 0,
@@ -112,6 +115,7 @@ class ReservedItem {
   Map<String, dynamic> toJson() {
     return {
       'item_id': itemId,
+      'asset_id': assetId,
       'item_name': itemName,
       'quantity': quantity,
       'returned_quantity': returnedQuantity,
@@ -121,6 +125,7 @@ class ReservedItem {
 
   ReservedItem copyWith({
     String? itemId,
+    String? assetId,
     String? itemName,
     int? quantity,
     int? returnedQuantity,
@@ -128,6 +133,7 @@ class ReservedItem {
   }) {
     return ReservedItem(
       itemId: itemId ?? this.itemId,
+      assetId: assetId ?? this.assetId,
       itemName: itemName ?? this.itemName,
       quantity: quantity ?? this.quantity,
       returnedQuantity: returnedQuantity ?? this.returnedQuantity,

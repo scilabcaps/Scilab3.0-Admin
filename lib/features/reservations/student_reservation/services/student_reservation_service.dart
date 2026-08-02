@@ -6,10 +6,14 @@ class StudentReservationService {
   final SupabaseClient _client = Supabase.instance.client;
   final CacheService _cache = CacheService();
 
-  /// Fetch all student reservations with user information
-  Future<List<StudentReservation>> fetchStudentReservations() async {
+  /// Fetch student reservations with pagination
+  Future<List<StudentReservation>> fetchStudentReservations({int page = 1, int limit = 20}) async {
     try {
-      // Fetch all reservations first without user_info relation
+      final start = (page - 1) * limit;
+      final end = start + limit - 1;
+
+      // Fetch paginated reservations first without user_info relation
+      // Filter: exclude 'unreturned' and 'declined' status, show only where professor_approval='approved' OR status='pending'
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -19,8 +23,8 @@ class StudentReservationService {
             reservation_date,
             start_time,
             end_time,
-            year,
-            section,
+            year_section,
+            course,
             professor,
             professor_approval,
             admin_approval,
@@ -29,7 +33,9 @@ class StudentReservationService {
             created_at,
             updated_at
           ''')
-          .order('created_at', ascending: false);
+          .or('and(professor_approval.eq.Approved,status.neq.Unreturned,status.neq.Declined,status.neq.Ongoing,status.neq.Completed),status.eq.Pending')
+          .order('created_at', ascending: false)
+          .range(start, end);
 
       print('Fetched ${reservationsResponse.length} reservations from database');
 
@@ -68,7 +74,7 @@ class StudentReservationService {
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
             .from('user_info')
-            .select('id, username, email, first_name, last_name, middle_name, role')
+            .select('id, username, email, first_name, last_name, role')
             .inFilter('id', userIds);
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
@@ -89,14 +95,12 @@ class StudentReservationService {
 
         // Format student name
         String studentName = '';
-        if (userInfo != null) {
-          final firstName = userInfo['first_name'] ?? '';
-          final lastName = userInfo['last_name'] ?? '';
-          studentName = firstName.isNotEmpty || lastName.isNotEmpty
-              ? '$firstName $lastName'.trim()
-              : userInfo['username'] ?? 'Unknown';
-        }
-
+        final firstName = userInfo['first_name'] ?? '';
+        final lastName = userInfo['last_name'] ?? '';
+        studentName = firstName.isNotEmpty || lastName.isNotEmpty
+            ? '$firstName $lastName'.trim()
+            : userInfo['username'] ?? 'Unknown';
+      
         // Format date
         final reservationDate = reservation['reservation_date'];
         final formattedDate = _formatDate(reservationDate);
@@ -122,12 +126,9 @@ class StudentReservationService {
           resources = resourceList;
         }
 
-        // Format year and section
-        final year = reservation['year']?.toString() ?? '';
-        final section = reservation['section']?.toString() ?? '';
-        final yearSection = year.isNotEmpty || section.isNotEmpty
-            ? '$year - $section'.trim()
-            : '';
+        // Format year_section and course
+        final yearSection = reservation['year_section']?.toString() ?? '';
+        final course = reservation['course']?.toString() ?? '';
 
         // Format professor name
         final professorName = reservation['professor']?.toString() ?? '';
@@ -136,9 +137,11 @@ class StudentReservationService {
         final updatedAt = reservation['updated_at'];
         final formattedLastUpdated = _formatDate(updatedAt);
 
-        // Use admin_approval for status
+        // Use the database status column (auto-set to 'Ongoing' when professor approves)
+        final dbStatus = reservation['status']?.toString() ?? 'Pending';
         final adminApproval = reservation['admin_approval']?.toString() ?? 'Pending';
-        print('Reservation $reservationId: admin_approval=$adminApproval');
+        final displayStatus = dbStatus;
+        print('Reservation $reservationId: status=$dbStatus, admin_approval=$adminApproval');
 
         reservations.add(StudentReservation(
           reservationId: reservationId.toString(),
@@ -147,8 +150,9 @@ class StudentReservationService {
           time: formattedTime,
           resources: resources,
           yearSection: yearSection,
+          course: course,
           professor: professorName,
-          status: adminApproval,
+          status: displayStatus,
           lastUpdated: formattedLastUpdated,
         ));
       }
@@ -161,12 +165,32 @@ class StudentReservationService {
     }
   }
 
+  /// Count total student reservations (for pagination)
+  Future<int> countStudentReservations() async {
+    try {
+      final response = await _client
+          .from('reservations')
+          .select('reservation_id')
+          .or('and(professor_approval.eq.Approved,status.neq.unreturned,status.neq.declined,status.neq.ongoing),status.eq.Pending')
+          .count();
+      return response.count;
+    } catch (e) {
+      print('Error counting student reservations: $e');
+      return 0;
+    }
+  }
+
   /// Update admin approval status
   Future<void> updateAdminApproval(int reservationId, String approval) async {
     try {
+      final Map<String, dynamic> updateData = {'admin_approval': approval};
+      if (approval == 'Approved') {
+        updateData['status'] = 'Ongoing';
+      }
+
       await _client
           .from('reservations')
-          .update({'admin_approval': approval})
+          .update(updateData)
           .eq('reservation_id', reservationId);
 
       // Clear dashboard cache since this affects stats

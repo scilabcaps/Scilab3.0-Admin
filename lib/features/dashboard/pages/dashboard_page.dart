@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../controllers/dashboard_controller.dart';
-import '../models/dashboard_model.dart';
+import '../models/dashboard_model.dart' show DashboardStats, CourseReservationData, BorrowedItem, RecentActivity;
 
 class DashboardPage extends StatefulWidget {
   final Function(String)? onNavigate;
@@ -295,6 +295,36 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildReservationChart() {
+    final courseData = _controller.courseData;
+    print('Building reservation chart with ${courseData.length} items');
+    
+    if (courseData.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Text(
+            'No course data available',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    // Find max value for Y-axis scaling
+    final maxCount = courseData.map((e) => e.reservationCount).fold(0, (a, b) => b > a ? b : a);
+    final maxY = (maxCount / 10).ceil() * 10.0; // Round up to nearest 10
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -311,13 +341,26 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Reservation Trends',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2E7D32),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Top Courses by Reservations',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2E7D32),
+                ),
+              ),
+              if (courseData.isNotEmpty)
+                const Text(
+                  'Total Count',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -328,7 +371,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: 0.2,
+                  horizontalInterval: maxY / 5,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
                       color: Colors.grey[300],
@@ -348,16 +391,21 @@ class _DashboardPageState extends State<DashboardPage> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
-                        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                        if (value.toInt() >= 0 && value.toInt() < days.length) {
+                        if (value.toInt() >= 0 && value.toInt() < courseData.length) {
+                          final courseName = courseData[value.toInt()].course;
+                          // Truncate long course names
+                          final displayName = courseName.length > 10 
+                              ? '${courseName.substring(0, 10)}...' 
+                              : courseName;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
-                              days[value.toInt()],
+                              displayName,
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 10,
                                 color: Colors.grey,
                               ),
+                              textAlign: TextAlign.center,
                             ),
                           );
                         }
@@ -368,10 +416,10 @@ class _DashboardPageState extends State<DashboardPage> {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: 0.2,
+                      interval: maxY / 5,
                       getTitlesWidget: (value, meta) {
                         return Text(
-                          value.toStringAsFixed(1),
+                          value.toInt().toString(),
                           style: const TextStyle(
                             fontSize: 10,
                             color: Colors.grey,
@@ -383,28 +431,37 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 borderData: FlBorderData(show: false),
                 minY: 0,
-                maxY: 1.0,
-                barGroups: _controller.reservationData
+                maxY: maxY > 0 ? maxY : 10,
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    tooltipBgColor: Colors.black87,
+                    tooltipPadding: const EdgeInsets.all(8),
+                    tooltipMargin: 8,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final courseName = courseData[group.x.toInt()].course;
+                      final count = rod.toY.toInt();
+                      return BarTooltipItem(
+                        '$courseName\n$count reservations',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                barGroups: courseData
                     .asMap()
                     .entries
                     .map((entry) => BarChartGroupData(
                           x: entry.key,
                           barRods: [
                             BarChartRodData(
-                              fromY: 0,
-                              toY: entry.value.approved,
-                              color: const Color(0xFF4CAF50),
-                              width: 20,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(4),
-                                topRight: Radius.circular(4),
-                              ),
-                            ),
-                            BarChartRodData(
-                              fromY: entry.value.approved,
-                              toY: entry.value.approved + entry.value.pending,
-                              color: const Color(0xFFFF9800),
-                              width: 20,
+                              toY: entry.value.reservationCount.toDouble(),
+                              color: const Color(0xFF2E7D32),
+                              width: 16,
                               borderRadius: const BorderRadius.only(
                                 topLeft: Radius.circular(4),
                                 topRight: Radius.circular(4),
@@ -416,15 +473,6 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 16,
-            children: [
-              _buildLegendItem('Approved', const Color(0xFF4CAF50)),
-              _buildLegendItem('Pending', const Color(0xFFFF9800)),
-            ],
-          ),
         ],
       ),
     );
@@ -433,6 +481,16 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildPieChartSection() {
     final stats = _controller.stats;
     if (stats == null) return const SizedBox();
+
+    // Ensure all sections have at least a small value to be visible
+    final approved = stats.approvedReservations.toDouble();
+    final pending = stats.pendingReservations.toDouble();
+    final rejected = stats.rejectedReservations.toDouble();
+    
+    // Add a small minimum value (0.1) to sections with 0 to make them visible
+    final adjustedApproved = approved > 0 ? approved : 0.1;
+    final adjustedPending = pending > 0 ? pending : 0.1;
+    final adjustedRejected = rejected > 0 ? rejected : 0.1;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -465,36 +523,36 @@ class _DashboardPageState extends State<DashboardPage> {
               PieChartData(
                 sections: [
                   PieChartSectionData(
-                    value: stats.approvedReservations.toDouble(),
-                    title: 'Approved',
+                    value: adjustedApproved,
+                    title: approved > 0 ? 'Approved ($approved)' : 'Approved (0)',
                     color: const Color(0xFF4CAF50),
                     radius: 50,
                     titleStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Colors.black,
                     ),
                   ),
                   PieChartSectionData(
-                    value: stats.pendingReservations.toDouble(),
-                    title: 'Pending',
+                    value: adjustedPending,
+                    title: pending > 0 ? 'Pending ($pending)' : 'Pending (0)',
                     color: const Color(0xFFFF9800),
                     radius: 50,
                     titleStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Colors.black,
                     ),
                   ),
                   PieChartSectionData(
-                    value: stats.rejectedReservations.toDouble(),
-                    title: 'Rejected',
+                    value: adjustedRejected,
+                    title: rejected > 0 ? 'Rejected ($rejected)' : 'Rejected (0)',
                     color: const Color(0xFFF44336),
                     radius: 50,
                     titleStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Colors.black,
                     ),
                   ),
                 ],
@@ -779,26 +837,4 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-      ],
-    );
-  }
 }
