@@ -45,27 +45,48 @@ class AuditService {
     String? entityType,
     String? actionType,
     String? userId,
+    DateTime? through,
   }) async {
     try {
-      // Build base query without user info join
-      final response = await SupabaseService.database
-          .from(SupabaseConfig.tableAuditLogs)
-          .select()
-          .gte('created_at', DateTime.now().subtract(Duration(days: days)).toIso8601String())
-          .order('created_at', ascending: false);
-
-      // Process logs
-      List<AuditLog> logs = response.map((e) => AuditLog.fromJson(e)).toList();
+      final end = (through ?? DateTime.now()).toUtc();
+      final start = end.subtract(Duration(days: days));
+      List<AuditLog> logs = [];
+      var offset = 0;
+      // Fetch every batch, including when the server imposes a smaller row cap.
+      while (true) {
+        var query = SupabaseService.database
+            .from(SupabaseConfig.tableAuditLogs)
+            .select()
+            .gte('created_at', start.toIso8601String())
+            .lte('created_at', end.toIso8601String());
+        if (entityType != null && entityType.isNotEmpty && entityType != 'all') {
+          query = query.eq('entity_type', entityType);
+        }
+        if (actionType != null && actionType.isNotEmpty && actionType != 'all') {
+          query = query.eq('action_type', actionType);
+        }
+        if (userId != null && userId.isNotEmpty) {
+          query = query.eq('user_id', userId);
+        }
+        final response = await query
+            .order('created_at', ascending: false)
+            .order('id', ascending: false)
+            .range(offset, offset + 499);
+        if (response.isEmpty) break;
+        logs.addAll(response.map((row) => AuditLog.fromJson(row)));
+        offset += response.length;
+      }
 
       // Fetch user information for unique user IDs
       final uniqueUserIds = logs.map((log) => log.userId).toSet().toList();
       final userMap = <String, String?>{};
       
-      if (uniqueUserIds.isNotEmpty) {
+      for (var i = 0; i < uniqueUserIds.length; i += 100) {
+        final batch = uniqueUserIds.skip(i).take(100).toList();
         final usersResponse = await SupabaseService.database
             .from(SupabaseConfig.tableUserInfo)
             .select('id, first_name, last_name')
-            .inFilter('id', uniqueUserIds);
+            .inFilter('id', batch);
         
         for (final user in usersResponse) {
           final firstName = user['first_name'] as String? ?? '';
@@ -81,21 +102,10 @@ class AuditService {
         return log.copyWith(userName: userName);
       }).toList();
 
-      // Filter on client side if needed
-      if (entityType != null && entityType.isNotEmpty && entityType != 'all') {
-        logs = logs.where((log) => log.entityType == entityType).toList();
-      }
-      if (actionType != null && actionType.isNotEmpty && actionType != 'all') {
-        logs = logs.where((log) => log.actionType == actionType).toList();
-      }
-      if (userId != null && userId.isNotEmpty) {
-        logs = logs.where((log) => log.userId == userId).toList();
-      }
-
       return logs;
     } catch (e) {
       print('Failed to fetch audit logs: $e');
-      return [];
+      rethrow;
     }
   }
 

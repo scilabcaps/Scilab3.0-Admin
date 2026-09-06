@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import '../controllers/unreturned_item_controller.dart';
 import '../models/unreturned_item_model.dart';
+import '../services/unreturned_item_export_service.dart';
+import '../services/unreturned_item_file_writer.dart';
 import '../widgets/return_dialog.dart';
 
 class UnreturnedItemPage extends StatefulWidget {
@@ -13,6 +17,7 @@ class UnreturnedItemPage extends StatefulWidget {
 class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
   final UnreturnedItemController _controller = UnreturnedItemController();
   TextEditingController searchController = TextEditingController();
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -25,6 +30,79 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
     _controller.dispose();
     searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _exportReport(String format) async {
+    if (_isExporting) return;
+    final generatedAt = DateTime.now();
+    setState(() => _isExporting = true);
+    try {
+      final items = _controller.filteredItems;
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No unreturned items match the selected filters.'),
+        ));
+        return;
+      }
+      final exporter = UnreturnedItemExportService();
+      final bytes = format == 'xlsx'
+          ? exporter.generateExcel(
+              items: items,
+              filtersDescription: _filtersDescription(),
+              generatedAt: generatedAt,
+            )
+          : await exporter.generatePdf(
+              items: items,
+              filtersDescription: _filtersDescription(),
+              generatedAt: generatedAt,
+            );
+      if (!mounted) return;
+      final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Unreturned Items Report',
+        fileName: 'unreturned_items_$stamp.$format',
+        type: FileType.custom,
+        allowedExtensions: [format],
+        bytes: bytes,
+      );
+      if (kIsWeb) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Download started: ${items.length} items.'),
+        ));
+        return;
+      }
+      if (path == null) return;
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        await writeUnreturnedItemFile(path, bytes);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Saved ${items.length} items to $path'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not generate report: $error'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  String _filtersDescription() {
+    final tab = switch (_controller.selectedTab) {
+      'students' => 'Students',
+      'professors' => 'Professors',
+      _ => 'All borrowers',
+    };
+    final category = _controller.selectedCategory ?? 'All categories';
+    final search = _controller.searchTerm.trim();
+    return 'Borrower: $tab | Category: $category'
+        '${search.isEmpty ? '' : ' | Search: $search'}';
   }
 
   @override
@@ -49,16 +127,69 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    IconButton(
-                      onPressed: () {
-                        _controller.refresh();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF152614),
-                      ),
+                    Row(
+                      children: [
+                        PopupMenuButton<String>(
+                          enabled: !_isExporting,
+                          tooltip: 'Export all items matching the selected filters',
+                          onSelected: _exportReport,
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'xlsx',
+                              child: Text('Excel (.xlsx)'),
+                            ),
+                            PopupMenuItem(
+                              value: 'pdf',
+                              child: Text('PDF (.pdf)'),
+                            ),
+                          ],
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _isExporting
+                                  ? Colors.grey.shade200
+                                  : const Color(0xFF31CB00),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_isExporting)
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                else const SizedBox.shrink(),
+                                if (_isExporting) const SizedBox(width: 8),
+                                Text(
+                                  _isExporting
+                                      ? 'Generating report...'
+                                      : 'Generate Report',
+                                  style: TextStyle(
+                                    color: _isExporting
+                                        ? Colors.grey.shade700
+                                        : Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          onPressed: _isExporting ? null : _controller.refresh,
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Refresh',
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF152614),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -102,12 +233,18 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AbsorbPointer(
+              absorbing: _isExporting,
               child: _buildSearchBar(),
+            ),
             ),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildFilterRow(),
+              child: AbsorbPointer(
+                absorbing: _isExporting,
+                child: _buildFilterRow(),
+              ),
             ),
             const SizedBox(height: 20),
             Expanded(

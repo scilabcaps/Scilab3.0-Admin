@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import '../controllers/audit_controller.dart';
 import '../models/audit_log_model.dart';
+import '../services/audit_export_service.dart';
+import '../services/audit_file_writer.dart';
+import '../services/audit_service.dart';
 
 class AuditPage extends StatefulWidget {
   const AuditPage({super.key});
@@ -11,11 +16,80 @@ class AuditPage extends StatefulWidget {
 
 class _AuditPageState extends State<AuditPage> {
   final AuditController _controller = AuditController();
+  bool _isExporting = false;
 
   @override
   void initState() {
     super.initState();
     _controller.loadLogs();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _exportReport(String format) async {
+    if (_isExporting) return;
+    final action = _controller.selectedActionType;
+    final entity = _controller.selectedEntityType;
+    final days = _controller.selectedDays;
+    final generatedAt = DateTime.now();
+    setState(() => _isExporting = true);
+    try {
+      final logs = await AuditService().getRecentLogs(
+        actionType: action, entityType: entity, days: days, through: generatedAt,
+      );
+      if (!mounted) return;
+      if (logs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No audit logs match the selected filters.'),
+        ));
+        return;
+      }
+      final exporter = AuditExportService();
+      final bytes = format == 'xlsx'
+          ? exporter.generateExcel(logs: logs, action: action, entity: entity,
+              days: days, generatedAt: generatedAt)
+          : await exporter.generatePdf(logs: logs, action: action, entity: entity,
+              days: days, generatedAt: generatedAt);
+      if (!mounted) return;
+      final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Audit Report',
+        fileName: 'audit_${action.toLowerCase()}_$stamp.$format',
+        type: FileType.custom,
+        allowedExtensions: [format],
+        bytes: bytes,
+      );
+      if (kIsWeb) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Download started: ${logs.length} audit records.'),
+        ));
+        return;
+      }
+      if (path == null) return; // Save dialog cancelled.
+      // Desktop pickers choose the path; mobile pickers write the supplied bytes.
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        await writeAuditFile(path, bytes);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Saved ${logs.length} audit records to $path'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not generate report: $error'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   @override
@@ -29,17 +103,51 @@ class _AuditPageState extends State<AuditPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Audit Logs',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text('Audit Logs', style: TextStyle(fontSize: 28,
+                      fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                  PopupMenuButton<String>(
+                    enabled: !_isExporting && !_controller.isLoading,
+                    tooltip: 'Export all records matching the selected filters',
+                    onSelected: _exportReport,
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'xlsx', child: Text('Excel (.xlsx)')),
+                      PopupMenuItem(value: 'pdf', child: Text('PDF (.pdf)')),
+                    ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _isExporting || _controller.isLoading
+                            ? theme.colorScheme.surfaceContainerHighest
+                            : const Color(0xFF31CB00),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (_isExporting)
+                          const SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                        if (_isExporting) const SizedBox(width: 8),
+                        Text(_isExporting ? 'Generating report...' : 'Generate Report',
+                          style: TextStyle(color: _isExporting || _controller.isLoading
+                              ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onPrimary)),
+                      ]),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
-              _buildFiltersSection(theme),
+              AbsorbPointer(absorbing: _isExporting, child: _buildFiltersSection(theme)),
+              const SizedBox(height: 8),
+              const Text('Reports include all records matching these filters, with full local dates and times.'),
               const SizedBox(height: 24),
+              if (_controller.isLoading) const LinearProgressIndicator(),
+              if (_controller.errorMessage != null)
+                Padding(padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(_controller.errorMessage!,
+                        style: TextStyle(color: theme.colorScheme.error))),
               _buildAuditTable(theme),
             ],
           ),
@@ -436,24 +544,7 @@ class _AuditPageState extends State<AuditPage> {
   }
 
   String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        if (difference.inMinutes == 0) {
-          return 'Just now';
-        }
-        return '${difference.inMinutes}m ago';
-      }
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
-    }
+    return formatAuditTimestamp(timestamp);
   }
 
   String _capitalizeFirst(String text) {

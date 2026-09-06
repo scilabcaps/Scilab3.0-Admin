@@ -4,7 +4,14 @@ import '../models/professor_reservation_model.dart';
 import '../widgets/approval_modal.dart';
 
 class ProfessorReservationPage extends StatefulWidget {
-  const ProfessorReservationPage({super.key});
+  const ProfessorReservationPage({
+    super.key,
+    this.initialReservationId,
+    this.onInitialReservationHandled,
+  });
+
+  final String? initialReservationId;
+  final VoidCallback? onInitialReservationHandled;
 
   @override
   State<ProfessorReservationPage> createState() => _ProfessorReservationPageState();
@@ -18,7 +25,23 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
   @override
   void initState() {
     super.initState();
-    _controller.loadReservations();
+    _loadReservationsAndOpenInitial();
+  }
+
+  Future<void> _loadReservationsAndOpenInitial() async {
+    await _controller.loadReservations();
+    if (!mounted || widget.initialReservationId == null) return;
+    final reservation = _controller.reservations
+        .where((item) => item.reservationId == widget.initialReservationId)
+        .firstOrNull;
+    if (reservation != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showApprovalModal(reservation);
+          widget.onInitialReservationHandled?.call();
+        }
+      });
+    }
   }
 
   @override
@@ -93,7 +116,9 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
   }
 
   Widget _buildStatsCards() {
-    final pending = _controller.reservations.where((r) => r.status.toLowerCase() == 'pending').length;
+    final pending = _controller.reservations
+        .where((r) => r.adminApproval.toLowerCase() == 'pending')
+        .length;
     final total = _controller.reservations.length;
 
     return Row(
@@ -335,7 +360,7 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
           ),
           Expanded(
             flex: 2,
-            child: _buildStatusBadge(reservation.status),
+            child: _buildStatusBadge(reservation.adminApproval),
           ),
           Expanded(
             flex: 2,

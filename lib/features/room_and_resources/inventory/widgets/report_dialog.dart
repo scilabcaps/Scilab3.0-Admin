@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:excel/excel.dart' as excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'dart:io';
 import '../models/inventory_model.dart';
 
@@ -228,6 +231,135 @@ class _ReportDialogState extends State<ReportDialog> {
     }
   }
 
+  Future<void> _exportToPdf() async {
+    try {
+      final regular = pw.Font.ttf(
+          await rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
+      final bold = pw.Font.ttf(
+          await rootBundle.load('assets/fonts/Roboto-Medium.ttf'));
+      final itemsToExport =
+          filteredItems.isNotEmpty ? filteredItems : widget.inventoryItems;
+      final document = pw.Document(title: 'Scilab Inventory Report', author: 'Scilab');
+      final rows = itemsToExport.map((item) => [
+        item.itemName,
+        item.category,
+        item.quantity.toString(),
+        item.status,
+        item.stockLevel,
+        item.lastUpdated ?? '-',
+        item.expiration == null || item.expiration!.isEmpty
+            ? '-'
+            : _formatDate(item.expiration),
+      ]).toList();
+
+      document.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(28),
+        maxPages: itemsToExport.length + 20,
+        theme: pw.ThemeData.withFont(base: regular, bold: bold),
+        header: (_) => pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 12),
+          child: pw.Text('Scilab Inventory Report',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+        ),
+        footer: (context) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
+              style: const pw.TextStyle(fontSize: 8)),
+        ),
+        build: (_) => [
+          pw.Text(
+              'Category: ${selectedCategory == 'all' ? 'All' : selectedCategory} | '
+              'Status: ${selectedStatus.isEmpty ? 'All' : selectedStatus} | '
+              'Stock Level: ${selectedStockLevel.isEmpty ? 'All' : selectedStockLevel}',
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.Text(
+              'Generated: ${_formatDateTime(DateTime.now())} | Records: ${itemsToExport.length}',
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.SizedBox(height: 10),
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'Item Name', 'Category', 'Quantity', 'Status', 'Stock Level',
+              'Last Updated', 'Expiration'
+            ],
+            data: rows,
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.0), 1: pw.FlexColumnWidth(1.2),
+              2: pw.FlexColumnWidth(0.8), 3: pw.FlexColumnWidth(1.2),
+              4: pw.FlexColumnWidth(1.2), 5: pw.FlexColumnWidth(1.7),
+              6: pw.FlexColumnWidth(1.4),
+            },
+            headerAlignment: pw.Alignment.centerLeft,
+            headerStyle: pw.TextStyle(fontSize: 8, color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold),
+            headerDecoration:
+                const pw.BoxDecoration(color: PdfColor.fromInt(0xFF245C35)),
+            cellStyle: const pw.TextStyle(fontSize: 7),
+            cellPadding: const pw.EdgeInsets.all(4),
+            oddRowDecoration:
+                const pw.BoxDecoration(color: PdfColors.grey100),
+            border: null,
+          ),
+        ],
+      ));
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Inventory Report',
+        fileName: 'inventory_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (result == null) return;
+      await File(result).writeAsBytes(await document.save(), flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF report saved to: $result'),
+        duration: const Duration(seconds: 3),
+        backgroundColor: const Color(0xFF31CB00),
+      ));
+      await _askToOpenReport(result);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error exporting to PDF: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final local = dateTime.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
+
+  Future<void> _askToOpenReport(String path) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Open Report?'),
+        content: const Text('Do you want to open the generated report?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('No')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await OpenFile.open(path);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF31CB00),
+                foregroundColor: Colors.white),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatDate(String? dateStr) {
     if (dateStr == null || dateStr == '-' || dateStr.isEmpty) {
       return '-';
@@ -344,7 +476,7 @@ class _ReportDialogState extends State<ReportDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    '📊 Inventory Report Generation',
+                    'Inventory Report Generation',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -468,6 +600,15 @@ class _ReportDialogState extends State<ReportDialog> {
                 ),
                 child: const Text('Export Excel'),
               ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _exportToPdf,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C757D),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Export PDF'),
+              ),
             ],
           ),
         ],
@@ -575,11 +716,13 @@ class _ReportDialogState extends State<ReportDialog> {
   }
 
   Widget _buildInventoryTable() {
-    return Column(
-      children: [
-        _buildTableHeader(),
-        ...paginatedItems.map((item) => _buildInventoryRow(item)),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildTableHeader(),
+          ...paginatedItems.map((item) => _buildInventoryRow(item)),
+        ],
+      ),
     );
   }
 

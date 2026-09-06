@@ -464,7 +464,6 @@ class UserController extends ChangeNotifier {
           .from(SupabaseConfig.tableUserInfo)
           .update({
             'isApproved': 2,
-            'isRejected': 1,
             'rejection_reason': reason,
           })
           .eq('id', userId);

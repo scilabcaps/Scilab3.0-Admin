@@ -7,6 +7,7 @@ class ProfessorReservation {
   final String resources;
   final String additionalNote;
   final String professorApproval;
+  final String adminApproval;
   final String status;
   final String? lastUpdated;
 
@@ -19,6 +20,7 @@ class ProfessorReservation {
     required this.resources,
     required this.additionalNote,
     required this.professorApproval,
+    required this.adminApproval,
     required this.status,
     this.lastUpdated,
   });
@@ -33,6 +35,7 @@ class ProfessorReservation {
       resources: json['resources'] ?? '',
       additionalNote: json['additional_note'] ?? '',
       professorApproval: json['professor_approval'] ?? 'Pending',
+      adminApproval: json['admin_approval'] ?? 'Pending',
       status: json['status'] ?? 'Pending',
       lastUpdated: json['last_updated'],
     );
@@ -48,6 +51,7 @@ class ProfessorReservation {
       'resources': resources,
       'additional_note': additionalNote,
       'professor_approval': professorApproval,
+      'admin_approval': adminApproval,
       'status': status,
       'last_updated': lastUpdated,
     };
@@ -62,6 +66,7 @@ class ProfessorReservation {
     String? resources,
     String? additionalNote,
     String? professorApproval,
+    String? adminApproval,
     String? status,
     String? lastUpdated,
   }) {
@@ -74,6 +79,7 @@ class ProfessorReservation {
       resources: resources ?? this.resources,
       additionalNote: additionalNote ?? this.additionalNote,
       professorApproval: professorApproval ?? this.professorApproval,
+      adminApproval: adminApproval ?? this.adminApproval,
       status: status ?? this.status,
       lastUpdated: lastUpdated ?? this.lastUpdated,
     );

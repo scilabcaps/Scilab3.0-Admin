@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import '../controllers/reservations_history_controller.dart';
 import '../models/reservations_history_model.dart';
+import '../services/reservation_history_export_service.dart';
+import '../services/reservation_history_file_writer.dart';
 import '../widgets/receipt_modal.dart';
 
 class ReservationsHistoryPage extends StatefulWidget {
-  const ReservationsHistoryPage({super.key});
+  const ReservationsHistoryPage({super.key, this.initialReservationId});
+
+  final String? initialReservationId;
 
   @override
   State<ReservationsHistoryPage> createState() => _ReservationsHistoryPageState();
@@ -14,10 +20,15 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
   final ReservationsHistoryController _controller =
       ReservationsHistoryController();
   final TextEditingController _searchController = TextEditingController();
+  bool _isExporting = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialReservationId != null) {
+      _searchController.text = widget.initialReservationId!;
+      _controller.setSearchQuery(widget.initialReservationId!);
+    }
     _controller.loadReservations();
   }
 
@@ -38,6 +49,98 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
     );
   }
 
+  Future<void> _exportReport(String format) async {
+    if (_isExporting) return;
+    final generatedAt = DateTime.now();
+    setState(() => _isExporting = true);
+
+    try {
+      final reservations = await _controller.getReservationsForReport();
+      if (!mounted) return;
+      if (reservations.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No reservation records match the selected filters.'),
+        ));
+        return;
+      }
+
+      final exporter = ReservationHistoryExportService();
+      final bytes = format == 'xlsx'
+          ? exporter.generateExcel(
+              reservations: reservations,
+              filtersDescription: _filtersDescription(),
+              generatedAt: generatedAt,
+            )
+          : await exporter.generatePdf(
+              reservations: reservations,
+              filtersDescription: _filtersDescription(),
+              generatedAt: generatedAt,
+            );
+      if (!mounted) return;
+
+      final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Reservation History Report',
+        fileName: 'reservation_history_$stamp.$format',
+        type: FileType.custom,
+        allowedExtensions: [format],
+        bytes: bytes,
+      );
+      if (kIsWeb) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Download started: ${reservations.length} reservations.'),
+        ));
+        return;
+      }
+      if (path == null) return;
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        await writeReservationHistoryFile(path, bytes);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Saved ${reservations.length} reservations to $path'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not generate report: $error'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  String _filtersDescription() {
+    final filters = <String>[
+      'Role: ${_controller.selectedFilter == 'all' ? 'All' : _controller.selectedFilter}',
+      'Status: ${_controller.selectedStatusFilter.isEmpty ? 'All' : _controller.selectedStatusFilter}',
+    ];
+    if (_controller.selectedDateFilter == 'specific' &&
+        _controller.specificDate != null) {
+      filters.add('Date: ${_formatDate(_controller.specificDate!)}');
+    } else if (_controller.selectedDateFilter == 'range') {
+      final start = _controller.startDate;
+      final end = _controller.endDate;
+      filters.add(
+        'Date range: ${start == null ? 'Any' : _formatDate(start)} to '
+        '${end == null ? 'Any' : _formatDate(end)}',
+      );
+    } else {
+      filters.add('Date: All');
+    }
+    if (_controller.searchQuery.trim().isNotEmpty) {
+      filters.add('Search: ${_controller.searchQuery.trim()}');
+    }
+    return filters.join(' | ');
+  }
+
+  String _formatDate(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -54,7 +157,10 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
                 const SizedBox(height: 24),
                 _buildStatsCards(),
                 const SizedBox(height: 24),
-                _buildFilterSection(),
+                AbsorbPointer(
+                  absorbing: _isExporting,
+                  child: _buildFilterSection(),
+                ),
                 const SizedBox(height: 20),
                 Expanded(child: _buildReservationsContent()),
               ],
@@ -77,16 +183,64 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
             color: Color(0xFF152614),
           ),
         ),
-        IconButton(
-          onPressed: () {
-            _controller.refresh();
-          },
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh',
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF152614),
-          ),
+        Row(
+          children: [
+            PopupMenuButton<String>(
+              enabled: !_isExporting && !_controller.isLoading,
+              tooltip: 'Export all records matching the selected filters',
+              onSelected: _exportReport,
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'xlsx',
+                  child: Text('Excel (.xlsx)'),
+                ),
+                PopupMenuItem(value: 'pdf', child: Text('PDF (.pdf)')),
+              ],
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isExporting || _controller.isLoading
+                      ? Colors.grey.shade200
+                          : const Color(0xFF31CB00),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isExporting)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    if (_isExporting) const SizedBox(width: 8),
+                    Text(
+                      _isExporting ? 'Generating report...' : 'Generate Report',
+                      style: TextStyle(
+                        color: _isExporting || _controller.isLoading
+                            ? Colors.grey.shade700
+                            : Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            IconButton(
+              onPressed: _isExporting ? null : _controller.refresh,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF152614),
+              ),
+            ),
+          ],
         ),
       ],
     );

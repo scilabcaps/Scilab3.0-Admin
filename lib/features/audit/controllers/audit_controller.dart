@@ -8,6 +8,8 @@ class AuditController extends ChangeNotifier {
   List<AuditLog> _logs = [];
   bool _isLoading = false;
   String? _errorMessage;
+  int _loadVersion = 0;
+  bool _disposed = false;
   
   // Filters
   String _selectedEntityType = 'all';
@@ -54,37 +56,46 @@ class AuditController extends ChangeNotifier {
   }
 
   Future<void> loadLogs() async {
+    final version = ++_loadVersion;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _logs = await _service.getRecentLogs(
+      final logs = await _service.getRecentLogs(
         days: _selectedDays,
         entityType: _selectedEntityType == 'all' ? null : _selectedEntityType,
         actionType: _selectedActionType == 'all' ? null : _selectedActionType,
       );
+      if (_disposed || version != _loadVersion) return;
+      _logs = logs;
       _errorMessage = null;
     } catch (e) {
+      if (_disposed || version != _loadVersion) return;
       _errorMessage = 'Failed to load audit logs: $e';
       _logs = [];
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!_disposed && version == _loadVersion) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   void setEntityTypeFilter(String type) {
+    _currentPage = 1;
     _selectedEntityType = type;
     notifyListeners();
   }
 
   void setActionTypeFilter(String type) {
+    _currentPage = 1;
     _selectedActionType = type;
     notifyListeners();
   }
 
   void setDaysFilter(int days) {
+    _currentPage = 1;
     _selectedDays = days;
     notifyListeners();
   }
@@ -119,5 +130,11 @@ class AuditController extends ChangeNotifier {
       _currentPage--;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

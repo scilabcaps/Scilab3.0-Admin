@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../controllers/dashboard_controller.dart';
-import '../models/dashboard_model.dart' show DashboardStats, CourseReservationData, BorrowedItem, RecentActivity;
+import '../models/dashboard_model.dart'
+    show DashboardStats, CourseReservationData, BorrowedItem, RecentActivity;
 
 class DashboardPage extends StatefulWidget {
   final Function(String)? onNavigate;
@@ -72,13 +73,9 @@ class _DashboardPageState extends State<DashboardPage> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildPieChartSection(),
-                  ),
+                  Expanded(child: _buildPieChartSection()),
                   const SizedBox(width: 24),
-                  Expanded(
-                    child: _buildRecentActivities(),
-                  ),
+                  Expanded(child: _buildRecentActivities()),
                 ],
               ),
               const SizedBox(height: 32),
@@ -135,7 +132,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -222,7 +224,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   'New Reservation',
                   Icons.add_circle_outline,
                   const Color(0xFF2E7D32),
-                  () => widget.onNavigate?.call('Ongoing Reservations'),
+                  () => widget.onNavigate?.call('New Reservation'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -297,7 +299,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildReservationChart() {
     final courseData = _controller.courseData;
     print('Building reservation chart with ${courseData.length} items');
-    
+
     if (courseData.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -322,7 +324,9 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     // Find max value for Y-axis scaling
-    final maxCount = courseData.map((e) => e.reservationCount).fold(0, (a, b) => b > a ? b : a);
+    final maxCount = courseData
+        .map((e) => e.reservationCount)
+        .fold(0, (a, b) => b > a ? b : a);
     final maxY = (maxCount / 10).ceil() * 10.0; // Round up to nearest 10
 
     return Container(
@@ -355,10 +359,7 @@ class _DashboardPageState extends State<DashboardPage> {
               if (courseData.isNotEmpty)
                 const Text(
                   'Total Count',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
             ],
           ),
@@ -373,10 +374,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   drawVerticalLine: false,
                   horizontalInterval: maxY / 5,
                   getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.grey[300],
-                      strokeWidth: 1,
-                    );
+                    return FlLine(color: Colors.grey[300], strokeWidth: 1);
                   },
                 ),
                 titlesData: FlTitlesData(
@@ -391,11 +389,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= 0 && value.toInt() < courseData.length) {
+                        if (value.toInt() >= 0 &&
+                            value.toInt() < courseData.length) {
                           final courseName = courseData[value.toInt()].course;
                           // Truncate long course names
-                          final displayName = courseName.length > 10 
-                              ? '${courseName.substring(0, 10)}...' 
+                          final displayName = courseName.length > 10
+                              ? '${courseName.substring(0, 10)}...'
                               : courseName;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
@@ -455,20 +454,22 @@ class _DashboardPageState extends State<DashboardPage> {
                 barGroups: courseData
                     .asMap()
                     .entries
-                    .map((entry) => BarChartGroupData(
-                          x: entry.key,
-                          barRods: [
-                            BarChartRodData(
-                              toY: entry.value.reservationCount.toDouble(),
-                              color: const Color(0xFF2E7D32),
-                              width: 16,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(4),
-                                topRight: Radius.circular(4),
-                              ),
+                    .map(
+                      (entry) => BarChartGroupData(
+                        x: entry.key,
+                        barRods: [
+                          BarChartRodData(
+                            toY: entry.value.reservationCount.toDouble(),
+                            color: const Color(0xFF2E7D32),
+                            width: 16,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(4),
+                              topRight: Radius.circular(4),
                             ),
-                          ],
-                        ))
+                          ),
+                        ],
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -486,7 +487,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final approved = stats.approvedReservations.toDouble();
     final pending = stats.pendingReservations.toDouble();
     final rejected = stats.rejectedReservations.toDouble();
-    
+
     // Add a small minimum value (0.1) to sections with 0 to make them visible
     final adjustedApproved = approved > 0 ? approved : 0.1;
     final adjustedPending = pending > 0 ? pending : 0.1;
@@ -524,7 +525,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 sections: [
                   PieChartSectionData(
                     value: adjustedApproved,
-                    title: approved > 0 ? 'Approved ($approved)' : 'Approved (0)',
+                    title: approved > 0
+                        ? 'Approved ($approved)'
+                        : 'Approved (0)',
                     color: const Color(0xFF4CAF50),
                     radius: 50,
                     titleStyle: const TextStyle(
@@ -546,7 +549,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   PieChartSectionData(
                     value: adjustedRejected,
-                    title: rejected > 0 ? 'Rejected ($rejected)' : 'Rejected (0)',
+                    title: rejected > 0
+                        ? 'Rejected ($rejected)'
+                        : 'Rejected (0)',
                     color: const Color(0xFFF44336),
                     radius: 50,
                     titleStyle: const TextStyle(
@@ -650,20 +655,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 Text(
                   activity.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
           Text(
             activity.timestamp,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -826,7 +825,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 item.status,
                 style: TextStyle(
                   fontSize: 10,
-                  color: item.status == 'AVAILABLE' ? const Color(0xFF4CAF50) : const Color(0xFFFF9800),
+                  color: item.status == 'AVAILABLE'
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFFFF9800),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -836,5 +837,4 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
-
 }

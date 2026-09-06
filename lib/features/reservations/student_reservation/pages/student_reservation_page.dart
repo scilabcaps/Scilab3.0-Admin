@@ -4,7 +4,14 @@ import '../models/student_reservation_model.dart';
 import '../widgets/approval_modal.dart';
 
 class StudentReservationPage extends StatefulWidget {
-  const StudentReservationPage({super.key});
+  const StudentReservationPage({
+    super.key,
+    this.initialReservationId,
+    this.onInitialReservationHandled,
+  });
+
+  final String? initialReservationId;
+  final VoidCallback? onInitialReservationHandled;
 
   @override
   State<StudentReservationPage> createState() => _StudentReservationPageState();
@@ -18,7 +25,23 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
   @override
   void initState() {
     super.initState();
-    _controller.loadReservations();
+    _loadReservationsAndOpenInitial();
+  }
+
+  Future<void> _loadReservationsAndOpenInitial() async {
+    await _controller.loadReservations();
+    if (!mounted || widget.initialReservationId == null) return;
+    final reservation = _controller.reservations
+        .where((item) => item.reservationId == widget.initialReservationId)
+        .firstOrNull;
+    if (reservation != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showApprovalModal(reservation);
+          widget.onInitialReservationHandled?.call();
+        }
+      });
+    }
   }
 
   @override

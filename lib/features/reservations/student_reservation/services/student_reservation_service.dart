@@ -13,7 +13,7 @@ class StudentReservationService {
       final end = start + limit - 1;
 
       // Fetch paginated reservations first without user_info relation
-      // Filter: exclude 'unreturned' and 'declined' status, show only where professor_approval='approved' OR status='pending'
+      // Require professor approval and exclude reservations no longer awaiting review.
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -33,7 +33,11 @@ class StudentReservationService {
             created_at,
             updated_at
           ''')
-          .or('and(professor_approval.eq.Approved,status.neq.Unreturned,status.neq.Declined,status.neq.Ongoing,status.neq.Completed),status.eq.Pending')
+          .eq('professor_approval', 'Approved')
+          .neq('status', 'Unreturned')
+          .neq('status', 'Declined')
+          .neq('status', 'Ongoing')
+          .neq('status', 'Completed')
           .order('created_at', ascending: false)
           .range(start, end);
 
@@ -171,7 +175,11 @@ class StudentReservationService {
       final response = await _client
           .from('reservations')
           .select('reservation_id')
-          .or('and(professor_approval.eq.Approved,status.neq.unreturned,status.neq.declined,status.neq.ongoing),status.eq.Pending')
+          .eq('professor_approval', 'Approved')
+          .neq('status', 'Unreturned')
+          .neq('status', 'Declined')
+          .neq('status', 'Ongoing')
+          .neq('status', 'Completed')
           .count();
       return response.count;
     } catch (e) {
@@ -186,6 +194,8 @@ class StudentReservationService {
       final Map<String, dynamic> updateData = {'admin_approval': approval};
       if (approval == 'Approved') {
         updateData['status'] = 'Ongoing';
+      } else if (approval == 'Declined') {
+        updateData['status'] = 'Declined';
       }
 
       await _client

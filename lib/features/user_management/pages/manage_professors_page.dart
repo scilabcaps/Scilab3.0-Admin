@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import '../controllers/user_controller.dart';
 import '../models/user_model.dart';
+import '../services/user_account_export_service.dart';
+import '../services/user_account_file_writer.dart';
 import '../../../core/utils/app_dialog.dart';
 
 class ManageProfessorsPage extends StatefulWidget {
@@ -24,6 +28,22 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   bool _obscureConfirmPassword = true;
   bool _isCreating = false;
   bool _isUpdating = false;
+  bool _isExporting = false;
+  int _currentPage = 1;
+  static const int _pageSize = 10;
+
+  List<User> get _visibleProfessors {
+    final page = _totalPages == 0
+        ? 1
+        : _currentPage.clamp(1, _totalPages) as int;
+    final start = (page - 1) * _pageSize;
+    if (start >= _controller.professors.length) return const [];
+    final end = (start + _pageSize).clamp(0, _controller.professors.length) as int;
+    return _controller.professors.sublist(start, end);
+  }
+
+  int get _totalPages =>
+      (_controller.professors.length / _pageSize).ceil();
 
   @override
   void initState() {
@@ -43,6 +63,61 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
     super.dispose();
   }
 
+  Future<void> _exportReport(String format) async {
+    if (_isExporting) return;
+    final generatedAt = DateTime.now();
+    setState(() => _isExporting = true);
+    try {
+      final users = _controller.professors;
+      if (users.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No professor accounts found.'),
+        ));
+        return;
+      }
+      final exporter = UserAccountExportService();
+      final bytes = format == 'xlsx'
+          ? exporter.generateExcel(
+              users: users, role: 'Professor', generatedAt: generatedAt)
+          : await exporter.generatePdf(
+              users: users, role: 'Professor', generatedAt: generatedAt);
+      if (!mounted) return;
+      final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Professor Accounts Report',
+        fileName: 'professor_accounts_$stamp.$format',
+        type: FileType.custom,
+        allowedExtensions: [format],
+        bytes: bytes,
+      );
+      if (kIsWeb) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Download started: ${users.length} accounts.'),
+        ));
+        return;
+      }
+      if (path == null) return;
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
+        await writeUserAccountFile(path, bytes);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Saved ${users.length} accounts to $path'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not generate report: $error'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -54,13 +129,19 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Manage Professors',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Manage Professors',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  _buildReportButton(),
+                ],
               ),
               const SizedBox(height: 32),
               
@@ -75,6 +156,44 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReportButton() {
+    return PopupMenuButton<String>(
+      enabled: !_isExporting,
+      tooltip: 'Export professor accounts',
+      onSelected: _exportReport,
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'xlsx', child: Text('Excel (.xlsx)')),
+        PopupMenuItem(value: 'pdf', child: Text('PDF (.pdf)')),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: _isExporting
+              ? Colors.grey.shade200
+              : const Color(0xFF31CB00),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _isExporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download, size: 20, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(_isExporting ? 'Generating report...' : 'Generate Report',
+                style: TextStyle(
+                    color: _isExporting ? Colors.grey.shade700 : Colors.white,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -314,8 +433,46 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         if (_controller.professors.isEmpty)
           _buildEmptyState()
         else
-          ..._controller.professors.map((professor) => _buildProfessorRow(professor, theme)),
+          ..._visibleProfessors.map((professor) => _buildProfessorRow(professor, theme)),
+        if (_totalPages > 1) _buildAccountPagination(),
       ],
+    );
+  }
+
+  Widget _buildAccountPagination() {
+    final page = _currentPage.clamp(1, _totalPages) as int;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Page $page of $_totalPages (${_controller.professors.length} total)',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: page > 1
+                    ? () => setState(() => _currentPage = page - 1)
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Previous page',
+              ),
+              IconButton(
+                onPressed: page < _totalPages
+                    ? () => setState(() => _currentPage = page + 1)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Next page',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

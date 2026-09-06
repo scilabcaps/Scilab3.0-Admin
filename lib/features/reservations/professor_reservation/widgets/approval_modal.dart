@@ -102,6 +102,8 @@ class _ApprovalModalState extends State<ApprovalModal> {
           _buildInfoRow('Additional Note:', widget.reservation.additionalNote),
           const SizedBox(height: 8),
           _buildInfoRow('Professor Approval:', widget.reservation.professorApproval),
+          const SizedBox(height: 8),
+          _buildInfoRow('Admin Approval:', widget.reservation.adminApproval),
         ],
       ),
     );

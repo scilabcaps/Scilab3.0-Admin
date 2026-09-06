@@ -157,6 +157,21 @@ class ReservationsHistoryService {
     }
   }
 
+  /// Fetch every reservation history record for report generation.
+  Future<List<ReservationHistory>> fetchAllReservations() async {
+    const pageSize = 500;
+    final total = await countReservations();
+    final reservations = <ReservationHistory>[];
+
+    for (var page = 1; reservations.length < total; page++) {
+      final batch = await fetchReservations(page: page, limit: pageSize);
+      if (batch.isEmpty) break;
+      reservations.addAll(batch);
+      if (batch.length < pageSize) break;
+    }
+    return reservations;
+  }
+
   /// Count total history reservations (for pagination)
   Future<int> countReservations() async {
     try {

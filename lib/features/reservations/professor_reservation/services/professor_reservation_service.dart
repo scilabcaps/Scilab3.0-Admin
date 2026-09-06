@@ -13,7 +13,8 @@ class ProfessorReservationService {
       final end = start + limit - 1;
 
       // Fetch paginated reservations first without user_info relation
-      // Filter: show only where professor_approval='approved' and exclude 'unreturned', 'declined', and 'ongoing' status
+      // Professor-made reservations are ready for admin review after professor
+      // approval, but must remain on this page only while admin approval is pending.
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -34,7 +35,7 @@ class ProfessorReservationService {
             updated_at
           ''')
           .eq('professor_approval', 'Approved')
-          .not('status', 'in', ['Unreturned', 'Declined', 'Ongoing'])
+          .eq('admin_approval', 'Pending')
           .order('created_at', ascending: false)
           .range(start, end);
 
@@ -218,6 +219,7 @@ class ProfessorReservationService {
           resources: resources,
           additionalNote: reservation['additional_note']?.toString() ?? '',
           professorApproval: profApproval,
+          adminApproval: reservation['admin_approval']?.toString() ?? 'Pending',
           status: reservation['status']?.toString() ?? 'Pending',
           lastUpdated: formattedLastUpdated,
         ));
@@ -269,7 +271,7 @@ class ProfessorReservationService {
           .from('reservations')
           .select('reservation_id')
           .eq('professor_approval', 'Approved')
-          .not('status', 'in', ['unreturned', 'declined', 'ongoing'])
+          .eq('admin_approval', 'Pending')
           .count();
       return response.count;
     } catch (e) {

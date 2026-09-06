@@ -110,6 +110,7 @@ CREATE TABLE public.user_info (
   isApproved integer CHECK ("isApproved" = ANY (ARRAY[0, 1, 2])),
   year_section text,
   course text,
+  rejection_reason text,
   CONSTRAINT user_info_pkey PRIMARY KEY (id),
   CONSTRAINT user_info_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
@@ -138,4 +139,14 @@ CREATE TABLE public.audit_logs (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
   CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  message text NOT NULL,
+  type text NOT NULL DEFAULT 'general'::text,
+  related_id text,
+  is_read boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id)
 );

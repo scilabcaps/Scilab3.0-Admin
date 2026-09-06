@@ -126,7 +126,7 @@ class UnreturnedItemController extends ChangeNotifier {
             quantity_borrowed,
             quantity_returned,
             is_returned,
-            reservations!left(
+            reservations!inner(
               reservation_id,
               reservation_date,
               user_id,

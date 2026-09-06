@@ -33,8 +33,12 @@ class ReservationsHistoryController extends ChangeNotifier {
   int get limit => _limit;
   int get totalPages => _totalRows > 0 ? (_totalRows / _limit).ceil() : 0;
 
-  List<ReservationHistory> get filteredReservations {
-    var filtered = _reservations;
+  List<ReservationHistory> get filteredReservations =>
+      filterReservations(_reservations);
+
+  List<ReservationHistory> filterReservations(
+      List<ReservationHistory> reservations) {
+    var filtered = reservations;
 
     // Apply role filter
     switch (_selectedFilter) {
@@ -78,6 +82,11 @@ class ReservationsHistoryController extends ChangeNotifier {
     }
 
     return filtered;
+  }
+
+  Future<List<ReservationHistory>> getReservationsForReport() async {
+    final reservations = await _service.fetchAllReservations();
+    return filterReservations(reservations);
   }
 
   bool _isSameDay(String dateString, DateTime date) {

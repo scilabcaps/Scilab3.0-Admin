@@ -35,3 +35,38 @@ ON user_info
 FOR DELETE
 TO authenticated
 USING (true);
+
+-- Notifications are visible to authenticated dashboard users. Inserts should
+-- be performed by trusted database functions/server-side code.
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated users can read notifications" ON public.notifications;
+CREATE POLICY "Authenticated users can read notifications"
+ON public.notifications
+FOR SELECT
+TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can mark notifications as read" ON public.notifications;
+CREATE POLICY "Authenticated users can mark notifications as read"
+ON public.notifications
+FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
+
+-- Required for Supabase Realtime subscriptions used by the dashboard bell.
+ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'notifications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+END
+$$;
