@@ -133,7 +133,7 @@ class InventoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateStock(String itemId, String category, int newQuantity) async {
+  Future<void> updateStock(String itemId, String category, num newQuantity) async {
     debugPrint('updateStock called: itemId=$itemId, category=$category, newQuantity=$newQuantity');
     debugPrint('Current inventory items count: ${_inventoryItems.length}');
     
@@ -199,7 +199,7 @@ class InventoryController extends ChangeNotifier {
     }
   }
 
-  String _calculateStockLevel(int quantity) {
+  String _calculateStockLevel(num quantity) {
     if (quantity <= 3) return 'Low';
     if (quantity <= 10) return 'Medium';
     return 'High';
@@ -208,7 +208,7 @@ class InventoryController extends ChangeNotifier {
   Future<void> addAsset({
     required String itemName,
     required String category,
-    required int quantity,
+    required num quantity,
     String? formula,
     String? unit,
     String? expiration,
@@ -283,7 +283,7 @@ class InventoryController extends ChangeNotifier {
     required String itemId,
     required String category,
     String? itemName,
-    int? quantity,
+    num? quantity,
     String? formula,
     String? unit,
     String? expiration,

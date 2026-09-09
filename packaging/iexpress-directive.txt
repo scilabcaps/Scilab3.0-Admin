@@ -1,0 +1,45 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallApp
+ShowInstallProgramWindow=1
+HideExtractAnimation=1
+UseLongFileName=1
+InsideCompressed=1
+RebootMode=N
+InstallPrompt=This will install ScilabReserve.
+FinishMessage=ScilabReserve has been installed.
+TargetName="C:\Users\trick\OneDrive\Documents\Projects\Scilab\Scilab3.0-Admin\dist\ScilabReserve-Setup.exe"
+FriendlyName=ScilabReserve Setup
+AppLaunched=install.cmd
+PostInstallCmd=<None>
+SourceFiles=SourceFiles
+[SourceFiles]
+SourceFiles0="C:\Users\trick\OneDrive\Documents\Projects\Scilab\Scilab3.0-Admin\packaging\staging\ScilabReserve"
+[SourceFiles0]
+admin_scalib.exe
+admin_scalib.pdb
+app_links_plugin.dll
+flutter_windows.dll
+install.cmd
+native_assets.json
+passkeys_windows_plugin.dll
+Scilab_Logo.png
+url_launcher_windows_plugin.dll
+data\icudtl.dat
+data\flutter_assets\.env
+data\flutter_assets\AssetManifest.bin
+data\flutter_assets\FontManifest.json
+data\flutter_assets\kernel_blob.bin
+data\flutter_assets\NativeAssetsManifest.json
+data\flutter_assets\NOTICES.Z
+data\flutter_assets\assets\fonts\LICENSE-Roboto.txt
+data\flutter_assets\assets\fonts\Roboto-Medium.ttf
+data\flutter_assets\assets\fonts\Roboto-Regular.ttf
+data\flutter_assets\assets\images\DLSP_Logo.png
+data\flutter_assets\assets\images\Scilab_Logo.png
+data\flutter_assets\fonts\MaterialIcons-Regular.otf
+data\flutter_assets\packages\cupertino_icons\assets\CupertinoIcons.ttf
+data\flutter_assets\shaders\ink_sparkle.frag
+data\flutter_assets\shaders\stretch_effect.frag

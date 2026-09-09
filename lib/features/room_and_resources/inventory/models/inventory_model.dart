@@ -2,14 +2,14 @@ class InventoryItem {
   final String itemId;
   final String itemName;
   final String category;
-  final int quantity;
+  final num quantity;
   final String status;
   final String stockLevel;
   final String? lastUpdated;
   final String? formula;
   final String? unit;
   final String? expiration;
-  final int? totalStock;
+  final num? totalStock;
   final String? conditionNotes;
 
   InventoryItem({
@@ -30,7 +30,7 @@ class InventoryItem {
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
     // Handle chemicals table
     if (json.containsKey('chemical_id')) {
-      final stockQuantity = (json['stock_quantity'] as num?)?.toInt() ?? 0;
+      final stockQuantity = (json['stock_quantity'] as num?) ?? 0;
       return InventoryItem(
         itemId: json['chemical_id']?.toString() ?? '',
         itemName: json['chemical_name'] ?? '',
@@ -67,14 +67,14 @@ class InventoryItem {
       itemId: json['item_id']?.toString() ?? '',
       itemName: json['item_name'] ?? '',
       category: json['category'] ?? '',
-      quantity: json['quantity'] ?? 0,
+      quantity: (json['quantity'] as num?) ?? 0,
       status: json['status'] ?? 'Available',
       stockLevel: json['stock_level'] ?? 'Medium',
       lastUpdated: json['last_updated'],
     );
   }
 
-  static String _calculateStockLevel(int quantity) {
+  static String _calculateStockLevel(num quantity) {
     if (quantity <= 3) return 'Low';
     if (quantity <= 10) return 'Medium';
     return 'High';
@@ -101,14 +101,14 @@ class InventoryItem {
     String? itemId,
     String? itemName,
     String? category,
-    int? quantity,
+    num? quantity,
     String? status,
     String? stockLevel,
     String? lastUpdated,
     String? formula,
     String? unit,
     String? expiration,
-    int? totalStock,
+    num? totalStock,
     String? conditionNotes,
   }) {
     return InventoryItem(

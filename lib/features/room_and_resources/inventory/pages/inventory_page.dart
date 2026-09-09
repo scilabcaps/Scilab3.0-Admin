@@ -12,6 +12,19 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   final InventoryController _controller = InventoryController();
+
+  String _formatQuantity(num quantity) {
+    return quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString();
+  }
+
+  String _formatExpiration(String value) {
+    try {
+      final date = DateTime.parse(value);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return value;
+    }
+  }
   TextEditingController searchController = TextEditingController();
 
   @override
@@ -287,12 +300,23 @@ class _InventoryPageState extends State<InventoryPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Quantity: ${item.quantity}',
+                  item.category.toLowerCase() == 'chemical'
+                      ? 'Stock: ${_formatQuantity(item.quantity)} ${item.unit ?? 'mL'}'
+                      : 'Quantity: ${item.quantity.toInt()} pieces',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
                   ),
                 ),
+                if (item.category.toLowerCase() == 'chemical' &&
+                    item.expiration != null &&
+                    item.expiration!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Expires: ${_formatExpiration(item.expiration!)}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                ],
               ],
             ),
           ),
@@ -339,7 +363,7 @@ class _InventoryPageState extends State<InventoryPage> {
 
   void _showUpdateStockDialog(InventoryItem item) {
     final TextEditingController quantityController = TextEditingController(
-      text: item.quantity.toString(),
+      text: _formatQuantity(item.quantity),
     );
 
     showDialog(
@@ -348,9 +372,11 @@ class _InventoryPageState extends State<InventoryPage> {
         title: Text('Update Stock - ${item.itemName}'),
         content: TextField(
           controller: quantityController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Quantity',
+          keyboardType: TextInputType.numberWithOptions(decimal: item.category.toLowerCase() == 'chemical'),
+          decoration: InputDecoration(
+            labelText: item.category.toLowerCase() == 'chemical'
+                ? 'Amount (${item.unit ?? 'mL'})'
+                : 'Quantity (pieces)',
             border: OutlineInputBorder(),
           ),
         ),
@@ -361,7 +387,9 @@ class _InventoryPageState extends State<InventoryPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newQuantity = int.tryParse(quantityController.text);
+              final newQuantity = item.category.toLowerCase() == 'chemical'
+                  ? num.tryParse(quantityController.text)
+                  : int.tryParse(quantityController.text);
               if (newQuantity != null) {
                 debugPrint('Update button pressed: itemId=${item.itemId}, category=${item.category}, newQuantity=$newQuantity');
                 await _controller.updateStock(item.itemId, item.category, newQuantity);
@@ -461,7 +489,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: quantityController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.numberWithOptions(decimal: categoryController.text.toLowerCase() == 'chemical'),
                   decoration: const InputDecoration(
                     labelText: 'Quantity',
                     border: OutlineInputBorder(),
@@ -545,7 +573,9 @@ class _InventoryPageState extends State<InventoryPage> {
             ElevatedButton(
               onPressed: () async {
                 final name = nameController.text.trim();
-                final quantity = int.tryParse(quantityController.text);
+                final quantity = categoryController.text.toLowerCase() == 'chemical'
+                    ? num.tryParse(quantityController.text)
+                    : int.tryParse(quantityController.text);
                 if (name.isNotEmpty && quantity != null) {
                   final expirationStr = expirationDate == null
                       ? null
@@ -582,7 +612,7 @@ class _InventoryPageState extends State<InventoryPage> {
 
   void _showEditAssetDialog(InventoryItem item) {
     final nameController = TextEditingController(text: item.itemName);
-    final quantityController = TextEditingController(text: item.quantity.toString());
+    final quantityController = TextEditingController(text: _formatQuantity(item.quantity));
     final formulaController = TextEditingController(text: item.formula ?? '');
     final unitController = TextEditingController(text: item.unit?.isNotEmpty == true ? item.unit : 'mL');
     final conditionController = TextEditingController(text: item.conditionNotes ?? '');
@@ -612,7 +642,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: quantityController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.numberWithOptions(decimal: item.category.toLowerCase() == 'chemical'),
                   decoration: const InputDecoration(
                     labelText: 'Quantity',
                     border: OutlineInputBorder(),
@@ -696,7 +726,9 @@ class _InventoryPageState extends State<InventoryPage> {
             ElevatedButton(
               onPressed: () async {
                 final name = nameController.text.trim();
-                final quantity = int.tryParse(quantityController.text);
+                final quantity = item.category.toLowerCase() == 'chemical'
+                    ? num.tryParse(quantityController.text)
+                    : int.tryParse(quantityController.text);
                 if (name.isNotEmpty && quantity != null) {
                   final expirationStr = expirationDate == null
                       ? null

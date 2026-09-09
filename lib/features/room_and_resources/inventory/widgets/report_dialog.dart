@@ -132,7 +132,7 @@ class _ReportDialogState extends State<ReportDialog> {
         final values = [
           item.itemName,
           item.category,
-          item.quantity.toString(),
+          '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
           item.status,
           item.stockLevel,
           formattedDate,
@@ -149,7 +149,9 @@ class _ReportDialogState extends State<ReportDialog> {
         sheet.appendRow([
           excel.TextCellValue(item.itemName),
           excel.TextCellValue(item.category),
-          excel.IntCellValue(item.quantity),
+          excel.TextCellValue(
+            '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
+          ),
           excel.TextCellValue(item.status),
           excel.TextCellValue(item.stockLevel),
           excel.TextCellValue(formattedDate),
@@ -243,7 +245,7 @@ class _ReportDialogState extends State<ReportDialog> {
       final rows = itemsToExport.map((item) => [
         item.itemName,
         item.category,
-        item.quantity.toString(),
+        '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
         item.status,
         item.stockLevel,
         item.lastUpdated ?? '-',
@@ -774,7 +776,9 @@ class _ReportDialogState extends State<ReportDialog> {
           ),
           Expanded(
             flex: 1,
-            child: Text(item.quantity.toString()),
+            child: Text(
+              '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
+            ),
           ),
           Expanded(
             flex: 2,

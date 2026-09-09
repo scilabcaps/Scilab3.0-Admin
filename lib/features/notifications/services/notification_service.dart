@@ -6,6 +6,9 @@ class NotificationService {
   SupabaseClient get _client => SupabaseService.database;
 
   Future<List<AppNotification>> fetchNotifications() async {
+    if (SupabaseService.auth.currentUser == null) {
+      return const <AppNotification>[];
+    }
     final rows = await _client
         .from('notifications')
         .select()
@@ -19,10 +22,14 @@ class NotificationService {
       (await fetchNotifications()).where((notification) => !notification.isRead).length;
 
   Future<void> markAsRead(String id) async =>
-      _client.from('notifications').update({'is_read': true}).eq('id', id);
+      SupabaseService.auth.currentUser == null
+          ? Future<void>.value()
+          : _client.from('notifications').update({'is_read': true}).eq('id', id);
 
   Future<void> markAllAsRead() async =>
-      _client.from('notifications').update({'is_read': true}).eq('is_read', false);
+      SupabaseService.auth.currentUser == null
+          ? Future<void>.value()
+          : _client.from('notifications').update({'is_read': true}).eq('is_read', false);
 
   RealtimeChannel subscribe({required void Function(PostgresChangePayload) onChange}) {
     if (SupabaseService.auth.currentUser == null) {

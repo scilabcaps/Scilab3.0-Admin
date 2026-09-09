@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/api/supabase_client.dart';
 import '../models/notification_model.dart';
 import '../services/notification_service.dart';
 
@@ -10,17 +13,28 @@ class NotificationController extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
   RealtimeChannel? _channel;
+  Timer? _refreshTimer;
+  bool _isRefreshing = false;
 
   int get unreadCount => notifications.where((item) => !item.isRead).length;
 
   Future<void> initialize() async {
     if (_channel != null) return;
+    if (SupabaseService.auth.currentUser == null) {
+      notifications = [];
+      errorMessage = null;
+      return;
+    }
     isLoading = true;
     notifyListeners();
     try {
       notifications = await _service.fetchNotifications();
       errorMessage = null;
       _channel = _service.subscribe(onChange: _handleChange);
+      _refreshTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _refreshNotifications(),
+      );
     } catch (error) {
       errorMessage = error.toString();
     } finally {
@@ -29,7 +43,24 @@ class NotificationController extends ChangeNotifier {
     }
   }
 
+  Future<void> _refreshNotifications() async {
+    if (_isRefreshing || SupabaseService.auth.currentUser == null) return;
+
+    _isRefreshing = true;
+    try {
+      notifications = await _service.fetchNotifications();
+      errorMessage = null;
+      notifyListeners();
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
   void _handleChange(PostgresChangePayload payload) {
+    if (SupabaseService.auth.currentUser == null) return;
     final record = payload.newRecord.isNotEmpty ? payload.newRecord : payload.oldRecord;
     if (record.isEmpty) return;
     final item = AppNotification.fromJson(Map<String, dynamic>.from(record));
@@ -48,7 +79,7 @@ class NotificationController extends ChangeNotifier {
   }
 
   Future<void> markAsRead(AppNotification item) async {
-    if (item.isRead) return;
+    if (item.isRead || SupabaseService.auth.currentUser == null) return;
     notifications = notifications.map((n) => n.id == item.id ? n.copyWith(isRead: true) : n).toList();
     notifyListeners();
     try {
@@ -60,6 +91,7 @@ class NotificationController extends ChangeNotifier {
   }
 
   Future<void> markAllAsRead() async {
+    if (SupabaseService.auth.currentUser == null) return;
     notifications = notifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
     try {
@@ -72,6 +104,7 @@ class NotificationController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     final channel = _channel;
     if (channel != null) _service.unsubscribe(channel);
     super.dispose();
