@@ -14,6 +14,7 @@ class NewReservationController extends ChangeNotifier {
   final NewReservationGateway _gateway;
   final Map<String, ReservationCartItem> _cart = {};
 
+  List<ReservationAccount> _accounts = [];
   List<ReservationResource> _resources = [];
   List<ReservationTimeRange> _roomSchedule = [];
   ReservationResourceType _selectedType = ReservationResourceType.room;
@@ -21,10 +22,13 @@ class NewReservationController extends ChangeNotifier {
   int? _startMinutes;
   int? _endMinutes;
   bool _isLoading = false;
+  bool _isLoadingAccounts = false;
   bool _isLoadingSchedule = false;
   bool _isSubmitting = false;
   String? _errorMessage;
+  ReservationAccount? _selectedAccount;
 
+  List<ReservationAccount> get accounts => List.unmodifiable(_accounts);
   List<ReservationResource> get resources => List.unmodifiable(_resources);
   List<ReservationCartItem> get cart => List.unmodifiable(_cart.values);
   List<ReservationTimeRange> get roomSchedule =>
@@ -34,9 +38,11 @@ class NewReservationController extends ChangeNotifier {
   int? get startMinutes => _startMinutes;
   int? get endMinutes => _endMinutes;
   bool get isLoading => _isLoading;
+  bool get isLoadingAccounts => _isLoadingAccounts;
   bool get isLoadingSchedule => _isLoadingSchedule;
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
+  ReservationAccount? get selectedAccount => _selectedAccount;
 
   List<ReservationResource> get visibleResources =>
       _resources.where((resource) => resource.type == _selectedType).toList();
@@ -54,6 +60,27 @@ class NewReservationController extends ChangeNotifier {
       _endMinutes! > _startMinutes!;
 
   bool get canSubmit => _cart.isNotEmpty && hasValidTime && !_isSubmitting;
+
+  Future<void> loadReservationAccounts() async {
+    _isLoadingAccounts = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      _accounts = await _gateway.loadReservationAccounts();
+    } catch (error) {
+      _accounts = [];
+      _errorMessage = _friendlyError(error);
+    } finally {
+      _isLoadingAccounts = false;
+      notifyListeners();
+    }
+  }
+
+  void selectAccount(ReservationAccount account) {
+    if (!account.canReserve) return;
+    _selectedAccount = account;
+    notifyListeners();
+  }
 
   Future<void> loadResources() async {
     _isLoading = true;
@@ -236,6 +263,12 @@ class NewReservationController extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+    final account = _selectedAccount;
+    if (account == null) {
+      _errorMessage = 'Select an account for this reservation.';
+      notifyListeners();
+      return null;
+    }
 
     _isSubmitting = true;
     _errorMessage = null;
@@ -243,6 +276,7 @@ class NewReservationController extends ChangeNotifier {
     try {
       final id = await _gateway.createReservation(
         NewReservationRequest(
+          account: account,
           date: _selectedDate,
           startMinutes: _startMinutes!,
           endMinutes: _endMinutes!,
@@ -253,6 +287,7 @@ class NewReservationController extends ChangeNotifier {
         ),
       );
       _cart.clear();
+      _selectedAccount = null;
       _roomSchedule = [];
       _clearTime();
       await loadResources();

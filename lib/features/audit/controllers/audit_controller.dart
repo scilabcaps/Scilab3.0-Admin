@@ -34,7 +34,16 @@ class AuditController extends ChangeNotifier {
     var filtered = _logs;
     
     if (_selectedEntityType != 'all') {
-      filtered = filtered.where((log) => log.entityType == _selectedEntityType).toList();
+      final entityTypes = switch (_selectedEntityType) {
+        'user_management' => const {'user'},
+        'room_management' => const {'room'},
+        'inventory_management' => const {'asset', 'chemical'},
+        'reservation_management' => const {'reservation', 'reservation_item'},
+        _ => const <String>{},
+      };
+      filtered = filtered
+          .where((log) => entityTypes.contains(log.entityType.toLowerCase()))
+          .toList();
     }
     if (_selectedActionType != 'all') {
       filtered = filtered.where((log) => log.actionType == _selectedActionType).toList();
@@ -64,7 +73,6 @@ class AuditController extends ChangeNotifier {
     try {
       final logs = await _service.getRecentLogs(
         days: _selectedDays,
-        entityType: _selectedEntityType == 'all' ? null : _selectedEntityType,
         actionType: _selectedActionType == 'all' ? null : _selectedActionType,
       );
       if (_disposed || version != _loadVersion) return;

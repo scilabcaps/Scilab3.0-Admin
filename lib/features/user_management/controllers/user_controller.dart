@@ -6,6 +6,7 @@ import '../../../core/service/cache_service.dart';
 import '../../audit/services/audit_service.dart';
 
 class UserController extends ChangeNotifier {
+  static const _studentsCacheKey = 'approved_students_list_v1';
   List<User> _students = [];
   List<User> _professors = [];
   List<User> _pendingApprovals = [];
@@ -19,7 +20,7 @@ class UserController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<void> loadStudents() async {
-    final cacheKey = 'students_list';
+    final cacheKey = _studentsCacheKey;
     
     // Try to get from cache first
     final cachedStudents = _cache.get<List<Map<String, dynamic>>>(cacheKey);
@@ -43,7 +44,8 @@ class UserController extends ChangeNotifier {
       final response = await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
           .select()
-          .eq('role', 'student');
+          .eq('role', 'student')
+          .eq('isApproved', 1);
 
       print('Raw response: $response');
 
@@ -177,11 +179,13 @@ class UserController extends ChangeNotifier {
         'last_name': lastName,
         'phone': phone,
         'role': userType,
+        'isApproved': 1,
       };
       
-      // Auto-approve professor accounts
+      // Admin-created accounts are approved immediately.
       if (userType == 'professor') {
-        userData['isApproved'] = 1;
+        userData['year_section'] = 'Professor';
+        userData['course'] = 'Professor';
       }
       
       await SupabaseService.database
@@ -210,7 +214,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after user creation to ensure consistency
       if (userType == 'student') {
-        await _cache.remove('students_list');
+        await _cache.remove(_studentsCacheKey);
       } else {
         await _cache.remove('professors_list');
       }
@@ -262,7 +266,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after user ban to ensure consistency
       if (userType == 'student') {
-        await _cache.remove('students_list');
+        await _cache.remove(_studentsCacheKey);
       } else {
         await _cache.remove('professors_list');
       }
@@ -304,7 +308,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after user unban to ensure consistency
       if (userType == 'student') {
-        await _cache.remove('students_list');
+        await _cache.remove(_studentsCacheKey);
       } else {
         await _cache.remove('professors_list');
       }
@@ -406,6 +410,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after approval to ensure consistency
       await _cache.remove('pending_approvals_list');
+      await _cache.remove(_studentsCacheKey);
 
       // Log audit action
       await _auditService.logAction(
@@ -440,6 +445,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after approval to ensure consistency
       await _cache.remove('pending_approvals_list');
+      await _cache.remove(_studentsCacheKey);
 
       // Log audit action
       await _auditService.logAction(
@@ -533,7 +539,7 @@ class UserController extends ChangeNotifier {
 
       // Clear cache after user update to ensure consistency
       if (updatedUser.userType == 'student') {
-        await _cache.remove('students_list');
+        await _cache.remove(_studentsCacheKey);
       } else {
         await _cache.remove('professors_list');
       }

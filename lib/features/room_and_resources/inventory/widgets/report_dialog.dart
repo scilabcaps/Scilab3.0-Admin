@@ -48,9 +48,32 @@ class _ReportDialogState extends State<ReportDialog> {
       }).toList();
     }
 
-    // Filter by status
-    if (selectedStatus.isNotEmpty) {
-      items = items.where((item) => item.status == selectedStatus).toList();
+    // Filter by the requested inventory status groups.
+    switch (selectedStatus) {
+      case 'Available':
+        items = items.where((item) => item.quantity > 0).toList();
+        break;
+      case 'In Use':
+        items = items.where((item) {
+          if (item.status.toLowerCase() == 'in use') return true;
+          return item.category.toLowerCase() != 'chemical' &&
+              item.totalStock != null &&
+              item.quantity < item.totalStock!;
+        }).toList();
+        break;
+      case 'Expired':
+        final today = DateUtils.dateOnly(DateTime.now());
+        items = items.where((item) {
+          if (item.category.toLowerCase() != 'chemical' ||
+              item.expiration == null ||
+              item.expiration!.isEmpty) {
+            return false;
+          }
+          final expirationDate = DateTime.tryParse(item.expiration!);
+          return expirationDate != null &&
+              DateUtils.dateOnly(expirationDate).isBefore(today);
+        }).toList();
+        break;
     }
 
     // Filter by stock level
@@ -540,6 +563,7 @@ class _ReportDialogState extends State<ReportDialog> {
                 onChanged: (value) {
                   setState(() {
                     selectedCategory = value ?? 'all';
+                    currentPage = 1;
                   });
                 },
               ),
@@ -550,16 +574,12 @@ class _ReportDialogState extends State<ReportDialog> {
                   DropdownMenuItem(value: '', child: Text('All Statuses')),
                   DropdownMenuItem(value: 'Available', child: Text('Available')),
                   DropdownMenuItem(value: 'In Use', child: Text('In Use')),
-                  DropdownMenuItem(value: 'Borrowed', child: Text('Borrowed')),
-                  DropdownMenuItem(value: 'Reserved', child: Text('Reserved')),
-                  DropdownMenuItem(value: 'Damaged', child: Text('Damaged')),
-                  DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
                   DropdownMenuItem(value: 'Expired', child: Text('Expired')),
-                  DropdownMenuItem(value: 'Out of Stock', child: Text('Out of Stock')),
                 ],
                 onChanged: (value) {
                   setState(() {
                     selectedStatus = value ?? '';
+                    currentPage = 1;
                   });
                 },
               ),
@@ -576,6 +596,7 @@ class _ReportDialogState extends State<ReportDialog> {
                 onChanged: (value) {
                   setState(() {
                     selectedStockLevel = value ?? '';
+                    currentPage = 1;
                   });
                 },
               ),
@@ -686,33 +707,58 @@ class _ReportDialogState extends State<ReportDialog> {
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(60),
-      child: const Column(
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 64,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No Data Available',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
+    final hasInventory = widget.inventoryItems.isNotEmpty;
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF5EB),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                size: 36,
+                color: Color(0xFF2E7D32),
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Apply filters and click "Generate Report" to view inventory data',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
+            const SizedBox(height: 20),
+            Text(
+              hasInventory ? 'No matching inventory' : 'No inventory items yet',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF263238),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              hasInventory
+                  ? 'Try changing your filters to see more items.'
+                  : 'Inventory items will appear here once they are added.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            if (hasInventory) ...[
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: _resetFilters,
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                label: const Text('Reset filters'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

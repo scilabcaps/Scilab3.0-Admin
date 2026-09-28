@@ -109,9 +109,11 @@ CREATE TABLE public.user_info (
   is_banned boolean DEFAULT false,
   isApproved integer CHECK ("isApproved" = ANY (ARRAY[0, 1, 2])),
   year_section text,
+  professor uuid,
   course text,
   CONSTRAINT user_info_pkey PRIMARY KEY (id),
-  CONSTRAINT user_info_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+  CONSTRAINT user_info_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
+  CONSTRAINT user_info_professor_fkey FOREIGN KEY (professor) REFERENCES public.user_info(id)
 );
 CREATE TABLE public.announcement (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

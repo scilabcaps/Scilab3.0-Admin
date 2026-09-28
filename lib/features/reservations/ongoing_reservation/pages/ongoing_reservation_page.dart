@@ -31,10 +31,10 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
   void _showReturnModal(OngoingReservation reservation) {
     showDialog(
       context: context,
+      useRootNavigator: true,
       builder: (context) => ReturnModal(
         reservation: reservation,
         controller: _controller,
-        onClose: () => Navigator.pop(context),
       ),
     );
   }

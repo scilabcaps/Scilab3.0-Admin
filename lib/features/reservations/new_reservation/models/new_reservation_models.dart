@@ -1,5 +1,43 @@
 enum ReservationResourceType { room, chemical, equipment, glassware }
 
+class ReservationAccount {
+  final String id;
+  final String username;
+  final String email;
+  final String firstName;
+  final String lastName;
+  final String role;
+  final String? yearSection;
+  final String? course;
+  final String? assignedProfessorId;
+  final String? assignedProfessorName;
+
+  const ReservationAccount({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.firstName,
+    required this.lastName,
+    required this.role,
+    this.yearSection,
+    this.course,
+    this.assignedProfessorId,
+    this.assignedProfessorName,
+  });
+
+  bool get isStudent => role.toLowerCase() == 'student';
+  bool get canReserve => !isStudent || assignedProfessorName != null;
+
+  String get fullName {
+    final name = '$firstName $lastName'.trim();
+    if (name.isNotEmpty) return name;
+    if (username.isNotEmpty) return username;
+    return email;
+  }
+
+  String get roleLabel => isStudent ? 'Student' : 'Professor';
+}
+
 extension ReservationResourceTypeLabel on ReservationResourceType {
   String get label {
     switch (this) {
@@ -73,6 +111,7 @@ class ReservationTimeRange {
 }
 
 class NewReservationRequest {
+  final ReservationAccount account;
   final DateTime date;
   final int startMinutes;
   final int endMinutes;
@@ -80,6 +119,7 @@ class NewReservationRequest {
   final List<ReservationCartItem> items;
 
   const NewReservationRequest({
+    required this.account,
     required this.date,
     required this.startMinutes,
     required this.endMinutes,

@@ -38,9 +38,21 @@ class _AuditPageState extends State<AuditPage> {
     final generatedAt = DateTime.now();
     setState(() => _isExporting = true);
     try {
-      final logs = await AuditService().getRecentLogs(
-        actionType: action, entityType: entity, days: days, through: generatedAt,
+      var logs = await AuditService().getRecentLogs(
+        actionType: action, days: days, through: generatedAt,
       );
+      final entityTypes = switch (entity) {
+        'user_management' => const {'user'},
+        'room_management' => const {'room'},
+        'inventory_management' => const {'asset', 'chemical'},
+        'reservation_management' => const {'reservation', 'reservation_item'},
+        _ => const <String>{},
+      };
+      if (entityTypes.isNotEmpty) {
+        logs = logs
+            .where((log) => entityTypes.contains(log.entityType.toLowerCase()))
+            .toList();
+      }
       if (!mounted) return;
       if (logs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -49,10 +61,17 @@ class _AuditPageState extends State<AuditPage> {
         return;
       }
       final exporter = AuditExportService();
+      final entityLabel = switch (entity) {
+        'user_management' => 'User Management',
+        'room_management' => 'Room Management',
+        'inventory_management' => 'Inventory Management',
+        'reservation_management' => 'Reservation Management',
+        _ => 'all',
+      };
       final bytes = format == 'xlsx'
-          ? exporter.generateExcel(logs: logs, action: action, entity: entity,
+          ? exporter.generateExcel(logs: logs, action: action, entity: entityLabel,
               days: days, generatedAt: generatedAt)
-          : await exporter.generatePdf(logs: logs, action: action, entity: entity,
+          : await exporter.generatePdf(logs: logs, action: action, entity: entityLabel,
               days: days, generatedAt: generatedAt);
       if (!mounted) return;
       final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
@@ -178,11 +197,22 @@ class _AuditPageState extends State<AuditPage> {
               value: _controller.selectedEntityType,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Entities')),
-                DropdownMenuItem(value: 'user', child: Text('Users')),
-                DropdownMenuItem(value: 'room', child: Text('Rooms')),
-                DropdownMenuItem(value: 'asset', child: Text('Assets')),
-                DropdownMenuItem(value: 'chemical', child: Text('Chemicals')),
-                DropdownMenuItem(value: 'reservation', child: Text('Reservations')),
+                DropdownMenuItem(
+                  value: 'user_management',
+                  child: Text('User Management'),
+                ),
+                DropdownMenuItem(
+                  value: 'room_management',
+                  child: Text('Room Management'),
+                ),
+                DropdownMenuItem(
+                  value: 'inventory_management',
+                  child: Text('Inventory Management'),
+                ),
+                DropdownMenuItem(
+                  value: 'reservation_management',
+                  child: Text('Reservation Management'),
+                ),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -199,15 +229,11 @@ class _AuditPageState extends State<AuditPage> {
               value: _controller.selectedActionType,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Actions')),
-                DropdownMenuItem(value: 'CREATE', child: Text('Create')),
+                DropdownMenuItem(value: 'APPROVE', child: Text('Approved')),
+                DropdownMenuItem(value: 'REJECT', child: Text('Declined')),
                 DropdownMenuItem(value: 'UPDATE', child: Text('Update')),
+                DropdownMenuItem(value: 'CREATE', child: Text('Add')),
                 DropdownMenuItem(value: 'DELETE', child: Text('Delete')),
-                DropdownMenuItem(value: 'BAN', child: Text('Ban')),
-                DropdownMenuItem(value: 'UNBAN', child: Text('Unban')),
-                DropdownMenuItem(value: 'APPROVE', child: Text('Approve')),
-                DropdownMenuItem(value: 'REJECT', child: Text('Reject')),
-                DropdownMenuItem(value: 'CANCEL', child: Text('Cancel')),
-                DropdownMenuItem(value: 'COMPLETE', child: Text('Complete')),
               ],
               onChanged: (value) {
                 if (value != null) {

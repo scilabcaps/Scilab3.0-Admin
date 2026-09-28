@@ -125,11 +125,7 @@ class ReservationsHistoryService {
         final userId = reservation['user_id'] as String?;
         if (userId != null && userInfoMap.containsKey(userId)) {
           final userInfo = userInfoMap[userId]!;
-          final firstName = userInfo['first_name'] ?? '';
-          final lastName = userInfo['last_name'] ?? '';
-          userName = firstName.isNotEmpty || lastName.isNotEmpty
-              ? '$firstName $lastName'.trim()
-              : userInfo['username'] ?? 'Unknown User';
+          userName = _fullName(userInfo);
           role = userInfo['role'] ?? 'Student';
         }
 
@@ -288,11 +284,7 @@ class ReservationsHistoryService {
       String userName = 'Unknown User';
       String role = 'Student';
       if (userInfo != null) {
-        final firstName = userInfo['first_name'] ?? '';
-        final lastName = userInfo['last_name'] ?? '';
-        userName = firstName.isNotEmpty || lastName.isNotEmpty
-            ? '$firstName $lastName'.trim()
-            : userInfo['username'] ?? 'Unknown User';
+        userName = _fullName(userInfo);
         role = userInfo['role'] ?? 'Student';
       }
 
@@ -315,6 +307,15 @@ class ReservationsHistoryService {
     } catch (e) {
       throw Exception('Failed to fetch reservation: $e');
     }
+  }
+
+  String _fullName(Map<String, dynamic> userInfo) {
+    final firstName = (userInfo['first_name'] as String? ?? '').trim();
+    final lastName = (userInfo['last_name'] as String? ?? '').trim();
+    final fullName = [firstName, lastName]
+        .where((part) => part.isNotEmpty)
+        .join(' ');
+    return fullName.isNotEmpty ? fullName : 'Unknown User';
   }
 
   String _formatDate(dynamic date) {

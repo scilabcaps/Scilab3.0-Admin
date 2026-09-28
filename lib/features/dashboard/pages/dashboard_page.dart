@@ -104,15 +104,6 @@ class _DashboardPageState extends State<DashboardPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            'Approved',
-            stats.approvedReservations.toString(),
-            Icons.check_circle,
-            const Color(0xFF4CAF50),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
             'Pending',
             stats.pendingReservations.toString(),
             Icons.pending,
@@ -239,7 +230,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildQuickActionButton(
-                  'View Reports',
+                  'Reservation History',
                   Icons.assessment,
                   const Color(0xFFFF9800),
                   () => widget.onNavigate?.call('Reservation History'),

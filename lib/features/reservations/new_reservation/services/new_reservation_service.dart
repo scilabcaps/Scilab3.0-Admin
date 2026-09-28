@@ -4,6 +4,8 @@ import '../../../../core/service/cache_service.dart';
 import '../models/new_reservation_models.dart';
 
 abstract class NewReservationGateway {
+  Future<List<ReservationAccount>> loadReservationAccounts();
+
   Future<List<ReservationResource>> loadResources();
 
   Future<List<ReservationTimeRange>> loadRoomSchedule(
@@ -20,6 +22,62 @@ class NewReservationService implements NewReservationGateway {
 
   final SupabaseClient _client;
   final CacheService _cache = CacheService();
+
+  @override
+  Future<List<ReservationAccount>> loadReservationAccounts() async {
+    final rows = await _client
+        .from('user_info')
+        .select(
+          'id, username, email, first_name, last_name, role, '
+          'year_section, course, professor',
+        )
+        .inFilter('role', ['student', 'professor'])
+        .eq('isApproved', 1)
+        .eq('is_banned', false)
+        .order('first_name');
+
+    final accounts = (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final professorIds = accounts
+        .where((row) => row['role']?.toString().toLowerCase() == 'student')
+        .map((row) => row['professor']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    final professorNames = <String, String>{};
+    if (professorIds.isNotEmpty) {
+      final professorRows = await _client
+          .from('user_info')
+          .select('id, username, email, first_name, last_name')
+          .inFilter('id', professorIds)
+          .eq('role', 'professor');
+      for (final rawRow in professorRows as List) {
+        final row = Map<String, dynamic>.from(rawRow as Map);
+        professorNames[row['id'].toString()] = _displayName(row);
+      }
+    }
+
+    return accounts.map((row) {
+      final professorId = row['professor']?.toString();
+      return ReservationAccount(
+        id: row['id'].toString(),
+        username: row['username']?.toString() ?? '',
+        email: row['email']?.toString() ?? '',
+        firstName: row['first_name']?.toString() ?? '',
+        lastName: row['last_name']?.toString() ?? '',
+        role: row['role']?.toString() ?? 'student',
+        yearSection: row['year_section']?.toString(),
+        course: row['course']?.toString(),
+        assignedProfessorId: professorId,
+        assignedProfessorName: professorId == null
+            ? null
+            : professorNames[professorId],
+      );
+    }).toList();
+  }
 
   @override
   Future<List<ReservationResource>> loadResources() async {
@@ -123,26 +181,15 @@ class NewReservationService implements NewReservationGateway {
 
     await _validateAvailability(request);
 
-    String adminName = user.email ?? 'Administrator';
-    try {
-      final profiles = await _client
-          .from('user_info')
-          .select('first_name, last_name, username')
-          .eq('id', user.id)
-          .limit(1);
-      if (profiles.isNotEmpty) {
-        final profile = profiles.first;
-        final fullName =
-            '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
-                .trim();
-        adminName = fullName.isNotEmpty
-            ? fullName
-            : profile['username']?.toString() ?? adminName;
-      }
-    } catch (_) {
-      // The authenticated email is a safe display fallback when profile data
-      // is unavailable under the current database policy.
+    final account = request.account;
+    if (!account.canReserve) {
+      throw StateError(
+        'The selected student does not have an assigned professor.',
+      );
     }
+    final professorName = account.isStudent
+        ? account.assignedProfessorName!
+        : account.fullName;
 
     int? reservationId;
     final updatedAssets = <int, num>{};
@@ -151,15 +198,18 @@ class NewReservationService implements NewReservationGateway {
       final inserted = await _client
           .from('reservations')
           .insert({
-            'user_id': user.id,
+            'user_id': account.id,
             'room_id': request.room?.resource.id,
             'reservation_date': _formatDate(request.date),
             'start_time': minutesToDatabaseTime(request.startMinutes),
             'end_time': minutesToDatabaseTime(request.endMinutes),
-            'professor': adminName,
+            'year_section': account.isStudent ? account.yearSection : null,
+            'course': account.isStudent ? account.course : null,
+            'professor': professorName,
             'professor_approval': 'Approved',
             'admin_approval': 'Approved',
             'status': 'Ongoing',
+            'approved_at': DateTime.now().toUtc().toIso8601String(),
             'additional_note': request.additionalNote,
           })
           .select('reservation_id')
@@ -323,5 +373,14 @@ class NewReservationService implements NewReservationGateway {
 
   String _formatDate(DateTime value) {
     return '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+  }
+
+  static String _displayName(Map<String, dynamic> row) {
+    final fullName =
+        '${row['first_name'] ?? ''} ${row['last_name'] ?? ''}'.trim();
+    if (fullName.isNotEmpty) return fullName;
+    final username = row['username']?.toString() ?? '';
+    if (username.isNotEmpty) return username;
+    return row['email']?.toString() ?? 'Professor';
   }
 }

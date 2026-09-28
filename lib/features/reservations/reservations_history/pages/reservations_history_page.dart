@@ -45,8 +45,62 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       builder: (context) => ReceiptModal(
         reservation: reservation,
         onClose: () => Navigator.pop(context),
+        onExportPdf: () => _exportReceiptPdf(reservation),
       ),
     );
+  }
+
+  Future<void> _exportReceiptPdf(ReservationHistory reservation) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      final generatedAt = DateTime.now();
+      final bytes = await ReservationHistoryExportService().generateReceiptPdf(
+        reservation: reservation,
+        generatedAt: generatedAt,
+      );
+      if (!mounted) return;
+
+      final safeFullName = reservation.userName
+          .trim()
+          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '')
+          .replaceAll(RegExp(r'\s+'), '_');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Reservation Receipt',
+        fileName:
+            '${safeFullName}_reservation_${reservation.reservationId}.pdf',
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        bytes: bytes,
+      );
+      if (path == null) return;
+
+      if (!kIsWeb) await writeReservationHistoryFile(path, bytes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              kIsWeb
+                  ? 'Receipt PDF download started.'
+                  : 'Receipt PDF saved. Open it to print.',
+            ),
+          ),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not export receipt PDF: $error'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   Future<void> _exportReport(String format) async {
@@ -269,15 +323,6 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            'Cancelled',
-            _controller.cancelledReservations,
-            const Color(0xFF9E9E9E),
-            Icons.cancel,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
             'Declined',
             _controller.declinedReservations,
             const Color(0xFFF44336),
@@ -447,7 +492,6 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           items: const [
             DropdownMenuItem(value: 'Completed', child: Text('Completed')),
             DropdownMenuItem(value: 'Declined', child: Text('Declined')),
-            DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -644,7 +688,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('User Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(flex: 3, child: Text('Full Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
           Expanded(flex: 2, child: Text('Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
           Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
           Expanded(flex: 3, child: Text('Room / Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),

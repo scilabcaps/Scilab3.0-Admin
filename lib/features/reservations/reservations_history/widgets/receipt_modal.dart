@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
 import '../models/reservations_history_model.dart';
 
-class ReceiptModal extends StatelessWidget {
+class ReceiptModal extends StatefulWidget {
   final ReservationHistory reservation;
   final VoidCallback onClose;
+  final Future<void> Function() onExportPdf;
 
   const ReceiptModal({
     super.key,
     required this.reservation,
     required this.onClose,
+    required this.onExportPdf,
   });
+
+  @override
+  State<ReceiptModal> createState() => _ReceiptModalState();
+}
+
+class _ReceiptModalState extends State<ReceiptModal> {
+  bool _isExporting = false;
+
+  Future<void> _exportPdf() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      await widget.onExportPdf();
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +51,8 @@ class ReceiptModal extends StatelessWidget {
                     children: [
                       _buildReservationInfo(),
                       const SizedBox(height: 20),
-                      if (reservation.items != null && reservation.items!.isNotEmpty)
+                      if (widget.reservation.items != null &&
+                          widget.reservation.items!.isNotEmpty)
                         _buildItemsList()
                       else
                         const Text('No items in this reservation'),
@@ -70,7 +90,8 @@ class ReceiptModal extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: onClose,
+            onPressed: widget.onClose,
+            tooltip: 'Close receipt',
             icon: const Icon(Icons.close, color: Colors.white),
           ),
         ],
@@ -88,23 +109,23 @@ class ReceiptModal extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoRow('Reservation ID:', reservation.reservationId),
+          _buildInfoRow('Reservation ID:', widget.reservation.reservationId),
           const SizedBox(height: 8),
-          _buildInfoRow('User Name:', reservation.userName),
+          _buildInfoRow('Full Name:', widget.reservation.userName),
           const SizedBox(height: 8),
-          _buildInfoRow('Role:', reservation.role),
+          _buildInfoRow('Role:', widget.reservation.role),
           const SizedBox(height: 8),
-          _buildInfoRow('Reservation Type:', reservation.reservationType),
+          _buildInfoRow('Reservation Type:', widget.reservation.reservationType),
           const SizedBox(height: 8),
-          _buildInfoRow('Room / Item:', reservation.roomItemReserved),
+          _buildInfoRow('Room / Item:', widget.reservation.roomItemReserved),
           const SizedBox(height: 8),
-          _buildInfoRow('Reservation Date:', reservation.reservationDate),
+          _buildInfoRow('Reservation Date:', widget.reservation.reservationDate),
           const SizedBox(height: 8),
-          _buildInfoRow('Time Schedule:', reservation.timeSchedule),
+          _buildInfoRow('Time Schedule:', widget.reservation.timeSchedule),
           const SizedBox(height: 8),
-          _buildInfoRow('Status:', reservation.status),
+          _buildInfoRow('Status:', widget.reservation.status),
           const SizedBox(height: 8),
-          _buildInfoRow('Date Created:', reservation.dateCreated),
+          _buildInfoRow('Date Created:', widget.reservation.dateCreated),
         ],
       ),
     );
@@ -146,7 +167,7 @@ class ReceiptModal extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        ...reservation.items!.map((item) => _buildItemCard(item)),
+        ...widget.reservation.items!.map((item) => _buildItemCard(item)),
       ],
     );
   }
@@ -173,7 +194,6 @@ class ReceiptModal extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-              _buildItemStatusBadge(item.status),
             ],
           ),
           const SizedBox(height: 8),
@@ -189,45 +209,6 @@ class ReceiptModal extends StatelessWidget {
     );
   }
 
-  Widget _buildItemStatusBadge(String status) {
-    Color backgroundColor;
-    Color textColor;
-
-    switch (status.toLowerCase()) {
-      case 'returned':
-        backgroundColor = const Color(0xFFD4EDDA);
-        textColor = const Color(0xFF155724);
-        break;
-      case 'partial':
-        backgroundColor = const Color(0xFFFFF3CD);
-        textColor = const Color(0xFF856404);
-        break;
-      case 'pending':
-        backgroundColor = const Color(0xFFF8D7DA);
-        textColor = const Color(0xFF721C24);
-        break;
-      default:
-        backgroundColor = Colors.grey.shade200;
-        textColor = Colors.grey.shade700;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -239,10 +220,21 @@ class ReceiptModal extends StatelessWidget {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          OutlinedButton.icon(
+            onPressed: _isExporting ? null : _exportPdf,
+            icon: _isExporting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined),
+            label: Text(_isExporting ? 'Preparing PDF…' : 'Export PDF'),
+          ),
           TextButton(
-            onPressed: onClose,
+            onPressed: widget.onClose,
             child: const Text('Close'),
           ),
         ],

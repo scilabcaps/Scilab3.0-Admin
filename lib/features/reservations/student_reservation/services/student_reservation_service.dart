@@ -194,6 +194,7 @@ class StudentReservationService {
       final Map<String, dynamic> updateData = {'admin_approval': approval};
       if (approval == 'Approved') {
         updateData['status'] = 'Ongoing';
+        updateData['approved_at'] = DateTime.now().toUtc().toIso8601String();
       } else if (approval == 'Declined') {
         updateData['status'] = 'Declined';
       }

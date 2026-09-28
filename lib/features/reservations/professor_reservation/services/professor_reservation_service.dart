@@ -288,6 +288,7 @@ class ProfessorReservationService {
           .update({
             'admin_approval': 'Approved',
             'status': 'Ongoing',
+            'approved_at': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('reservation_id', reservationId);
 

@@ -5,13 +5,11 @@ import '../controllers/ongoing_reservation_controller.dart';
 class ReturnModal extends StatefulWidget {
   final OngoingReservation reservation;
   final OngoingReservationController controller;
-  final VoidCallback onClose;
 
   const ReturnModal({
     super.key,
     required this.reservation,
     required this.controller,
-    required this.onClose,
   });
 
   @override
@@ -20,6 +18,11 @@ class ReturnModal extends StatefulWidget {
 
 class _ReturnModalState extends State<ReturnModal> {
   final Map<String, TextEditingController> _quantityControllers = {};
+  bool _isProcessing = false;
+
+  void _closeDialog() {
+    Navigator.of(context, rootNavigator: true).pop();
+  }
 
   @override
   void initState() {
@@ -42,57 +45,89 @@ class _ReturnModalState extends State<ReturnModal> {
   }
 
   void _handleReturnItem(String itemId) async {
+    if (_isProcessing) return;
+    final dialogNavigator = Navigator.of(context, rootNavigator: true);
     final controller = _quantityControllers[itemId];
     if (controller != null) {
       final returnedQuantity = int.tryParse(controller.text) ?? 0;
-      final item = widget.reservation.items?.firstWhere((i) => i.itemId == itemId);
-      
+      final item = widget.reservation.items?.firstWhere(
+        (i) => i.itemId == itemId,
+      );
+
       if (item != null) {
+        if (returnedQuantity <= item.returnedQuantity ||
+            returnedQuantity > item.quantity) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Enter a quantity between ${item.returnedQuantity + 1} and ${item.quantity}.',
+              ),
+            ),
+          );
+          return;
+        }
+        setState(() => _isProcessing = true);
+        final reservationId = widget.reservation.reservationId;
+        final reservationController = widget.controller;
+
         if (returnedQuantity >= item.quantity) {
-          // Full return
-          await widget.controller.returnItem(
-            widget.reservation.reservationId,
+          final returnOperation = reservationController.returnItem(
+            reservationId,
             itemId,
           );
-        } else if (returnedQuantity > item.returnedQuantity && returnedQuantity < item.quantity) {
-          // Partial return
+          dialogNavigator.pop();
+          await returnOperation;
+          await reservationController.loadReservations();
+        } else {
           final returnQuantity = returnedQuantity - item.returnedQuantity;
-          await widget.controller.returnPartialItem(
-            widget.reservation.reservationId,
+          final returnOperation = reservationController.returnPartialItem(
+            reservationId,
             itemId,
             returnQuantity,
           );
+          dialogNavigator.pop();
+          await returnOperation;
+          await reservationController.loadReservations();
         }
-        
-        setState(() {});
       }
     }
   }
 
   void _handleReturnAll() async {
+    if (_isProcessing) return;
+    final dialogNavigator = Navigator.of(context, rootNavigator: true);
+    setState(() => _isProcessing = true);
     if (widget.reservation.items?.isNotEmpty ?? false) {
-      for (var item in widget.reservation.items!) {
-        if (item.status.toLowerCase() != 'used' && 
+      final items = List<ReservedItem>.from(widget.reservation.items!);
+      final reservationId = widget.reservation.reservationId;
+      final reservationController = widget.controller;
+      dialogNavigator.pop();
+
+      for (var item in items) {
+        if (item.status.toLowerCase() != 'used' &&
             item.returnedQuantity < item.quantity &&
             item.assetId.isNotEmpty) {
-          await widget.controller.returnItem(
-            widget.reservation.reservationId,
+          await reservationController.returnItem(
+            reservationId,
             item.itemId,
           );
         }
       }
-      setState(() {});
+      await reservationController.loadReservations();
+    } else if (mounted) {
+      setState(() => _isProcessing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -124,7 +159,7 @@ class _ReturnModalState extends State<ReturnModal> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       decoration: const BoxDecoration(
         color: Color(0xFF31CB00),
         borderRadius: BorderRadius.only(
@@ -136,7 +171,7 @@ class _ReturnModalState extends State<ReturnModal> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'Reservation Details & Return Processing',
+            'Reservation details',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -144,7 +179,8 @@ class _ReturnModalState extends State<ReturnModal> {
             ),
           ),
           IconButton(
-            onPressed: widget.onClose,
+            onPressed: _closeDialog,
+            tooltip: 'Close dialog',
             icon: const Icon(Icons.close, color: Colors.white),
           ),
         ],
@@ -261,17 +297,20 @@ class _ReturnModalState extends State<ReturnModal> {
           if (item.status.toLowerCase() != 'used')
             Row(
               children: [
-                const Text('Return Quantity: '),
+                const Text('Return total'),
                 const SizedBox(width: 8),
                 SizedBox(
                   width: 80,
                   child: TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
+                    enabled: !_isProcessing,
+                    onChanged: (_) => setState(() {}),
+                    textAlign: TextAlign.center,
+                    onSubmitted: (_) => _handleReturnItem(item.itemId),
                     decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
@@ -281,10 +320,7 @@ class _ReturnModalState extends State<ReturnModal> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: () {
-                    _handleReturnItem(item.itemId);
-                    setState(() {});
-                  },
+                  onPressed: _isProcessing ? null : () => _handleReturnItem(item.itemId),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF31CB00),
                     foregroundColor: Colors.white,
@@ -292,7 +328,7 @@ class _ReturnModalState extends State<ReturnModal> {
                       borderRadius: BorderRadius.circular(5),
                     ),
                   ),
-                  child: const Text('Return'),
+                  child: const Text('Confirm return'),
                 ),
               ],
             )
@@ -348,7 +384,7 @@ class _ReturnModalState extends State<ReturnModal> {
         children: [
           if (hasReturnableItems)
             ElevatedButton(
-              onPressed: _handleReturnAll,
+              onPressed: _isProcessing ? null : _handleReturnAll,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF31CB00),
                 foregroundColor: Colors.white,
@@ -356,11 +392,17 @@ class _ReturnModalState extends State<ReturnModal> {
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
-              child: const Text('Return All'),
+              child: _isProcessing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Return all'),
             ),
           const Spacer(),
           TextButton(
-            onPressed: widget.onClose,
+            onPressed: _closeDialog,
             child: const Text('Close'),
           ),
         ],

@@ -11,6 +11,8 @@ void main() {
     gateway = _FakeGateway();
     controller = NewReservationController(gateway: gateway);
     await controller.loadResources();
+    await controller.loadReservationAccounts();
+    controller.selectAccount(gateway.student);
     await controller.selectDate(DateTime.now().add(const Duration(days: 2)));
   });
 
@@ -84,6 +86,18 @@ void main() {
 }
 
 class _FakeGateway implements NewReservationGateway {
+  final student = const ReservationAccount(
+    id: 'student-id',
+    username: 'student',
+    email: 'student@example.com',
+    firstName: 'Test',
+    lastName: 'Student',
+    role: 'student',
+    yearSection: '1A',
+    course: 'BS Chemistry',
+    assignedProfessorId: 'professor-id',
+    assignedProfessorName: 'Test Professor',
+  );
   final roomOne = const ReservationResource(
     id: 1,
     name: 'Chemistry Laboratory',
@@ -124,6 +138,11 @@ class _FakeGateway implements NewReservationGateway {
   );
 
   NewReservationRequest? createdRequest;
+
+  @override
+  Future<List<ReservationAccount>> loadReservationAccounts() async {
+    return [student];
+  }
 
   @override
   Future<int> createReservation(NewReservationRequest request) async {

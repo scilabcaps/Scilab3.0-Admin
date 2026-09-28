@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/new_reservation_controller.dart';
 import '../models/new_reservation_models.dart';
+import '../widgets/reservation_review_dialog.dart';
 
 class NewReservationPage extends StatefulWidget {
   const NewReservationPage({super.key});
@@ -9,7 +10,6 @@ class NewReservationPage extends StatefulWidget {
   @override
   State<NewReservationPage> createState() => _NewReservationPageState();
 }
-
 class _NewReservationPageState extends State<NewReservationPage> {
   static const Color _primary = Color(0xFF2E7D32);
 
@@ -321,12 +321,17 @@ class _NewReservationPageState extends State<NewReservationPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
-                  onPressed: _controller.canSubmit ? _confirmReservation : null,
+                  onPressed:
+                      _controller.canSubmit && !_controller.isLoadingAccounts
+                      ? _confirmReservation
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: _primary,
                     minimumSize: const Size(210, 52),
                   ),
-                  icon: _controller.isSubmitting
+                  icon:
+                      _controller.isSubmitting ||
+                          _controller.isLoadingAccounts
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -339,6 +344,8 @@ class _NewReservationPageState extends State<NewReservationPage> {
                   label: Text(
                     _controller.isSubmitting
                         ? 'Creating reservation…'
+                        : _controller.isLoadingAccounts
+                        ? 'Loading accounts…'
                         : 'Review Reservation',
                   ),
                 ),
@@ -578,84 +585,39 @@ class _NewReservationPageState extends State<NewReservationPage> {
       return;
     }
 
+    if (_controller.accounts.isEmpty) {
+      await _controller.loadReservationAccounts();
+      if (!mounted) return;
+    }
+    if (_controller.accounts.isEmpty) {
+      _showMessage(
+        _controller.errorMessage ??
+            'No approved and active student or professor accounts are available.',
+        isError: true,
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm reservation'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _SummaryRow(
-                  label: 'Date',
-                  value: _formatDate(_controller.selectedDate),
-                ),
-                _SummaryRow(
-                  label: 'Time',
-                  value:
-                      '${minutesToDisplayTime(_controller.startMinutes!)} – ${minutesToDisplayTime(_controller.endMinutes!)}',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Resources',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                ..._controller.cart.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '• ${item.resource.name} × ${_formatQuantity(item.quantity)}',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.verified_outlined, color: _primary),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'This admin-created reservation will be approved immediately.',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _primary),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Create Reservation'),
-          ),
-        ],
+      builder: (_) => ReservationReviewDialog(
+        controller: _controller,
+        dateLabel: _formatDate(_controller.selectedDate),
+        timeLabel:
+            '${minutesToDisplayTime(_controller.startMinutes!)} – ${minutesToDisplayTime(_controller.endMinutes!)}',
+        additionalNote: _noteController.text,
       ),
     );
 
     if (confirmed != true || !mounted) return;
+    final accountName = _controller.selectedAccount!.fullName;
     final id = await _controller.submit(_noteController.text);
     if (!mounted) return;
     if (id != null) {
       _noteController.clear();
-      _showMessage('Reservation #$id was created and approved.');
+      _showMessage(
+        'Reservation #$id for $accountName was created and approved.',
+      );
     } else if (_controller.errorMessage != null) {
       _showMessage(_controller.errorMessage!, isError: true);
     }
@@ -714,7 +676,6 @@ class _NewReservationPageState extends State<NewReservationPage> {
     return '${months[value.month - 1]} ${value.day}, ${value.year}';
   }
 }
-
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,
@@ -942,33 +903,6 @@ class _Legend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 13)),
       ],
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
     );
   }
 }
