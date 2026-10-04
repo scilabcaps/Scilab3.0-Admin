@@ -97,12 +97,17 @@ class NewReservationService implements NewReservationGateway {
 
     final rooms = (results[0] as List).map((row) {
       final data = row as Map<String, dynamic>;
-      final status = data['status']?.toString() ?? 'Unavailable';
+      final storedStatus = data['status']?.toString() ?? 'Available';
+      // Room occupancy is schedule-based. Only maintenance blocks selection
+      // here; the selected date/time is validated against reservations later.
+      final status = storedStatus.toLowerCase() == 'maintenance'
+          ? 'Maintenance'
+          : 'Available';
       return ReservationResource(
         id: data['room_id'] as int,
         name: data['room_name']?.toString() ?? 'Laboratory room',
         type: ReservationResourceType.room,
-        availableQuantity: status.toLowerCase() == 'available' ? 1 : 0,
+        availableQuantity: status == 'Available' ? 1 : 0,
         description: 'Capacity: ${data['capacity'] ?? 'Not specified'}',
         status: status,
       );
@@ -199,6 +204,7 @@ class NewReservationService implements NewReservationGateway {
           .from('reservations')
           .insert({
             'user_id': account.id,
+            'created_by': user.id,
             'room_id': request.room?.resource.id,
             'reservation_date': _formatDate(request.date),
             'start_time': minutesToDatabaseTime(request.startMinutes),

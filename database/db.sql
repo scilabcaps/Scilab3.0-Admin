@@ -38,6 +38,7 @@ CREATE TABLE public.lab_assets (
 CREATE TABLE public.reservations (
   reservation_id integer NOT NULL DEFAULT nextval('reservations_reservation_id_seq'::regclass),
   user_id uuid,
+  created_by uuid,
   room_id integer,
   reservation_date date NOT NULL,
   start_time time without time zone NOT NULL,
@@ -54,7 +55,8 @@ CREATE TABLE public.reservations (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT reservations_pkey PRIMARY KEY (reservation_id),
   CONSTRAINT reservations_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(room_id),
-  CONSTRAINT reservations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_info(id)
+  CONSTRAINT reservations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_info(id),
+  CONSTRAINT reservations_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.reservation_items (
   detail_id integer NOT NULL DEFAULT nextval('reservation_items_detail_id_seq'::regclass),

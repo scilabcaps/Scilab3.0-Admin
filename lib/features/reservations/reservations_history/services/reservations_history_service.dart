@@ -18,6 +18,7 @@ class ReservationsHistoryService {
           .select('''
             reservation_id,
             user_id,
+            created_by,
             room_id,
             reservation_date,
             start_time,
@@ -42,6 +43,11 @@ class ReservationsHistoryService {
 
       // Fetch user info for all users in reservations
       final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
+      final creatorIds = reservationsResponse
+          .map((r) => r['created_by'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
       final Map<String, Map<String, dynamic>> userInfoMap = {};
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
@@ -50,6 +56,16 @@ class ReservationsHistoryService {
             .inFilter('id', userIds);
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
+        }
+      }
+      final Map<String, Map<String, dynamic>> creatorInfoMap = {};
+      if (creatorIds.isNotEmpty) {
+        final creatorsResponse = await _client
+            .from('user_info')
+            .select('id, username, email, first_name, last_name, role')
+            .inFilter('id', creatorIds);
+        for (final creator in creatorsResponse) {
+          creatorInfoMap[creator['id'] as String] = creator;
         }
       }
 
@@ -132,6 +148,14 @@ class ReservationsHistoryService {
         // Format dates
         final reservationDate = reservation['reservation_date'];
         final createdAt = reservation['created_at'];
+        final createdById = reservation['created_by'] as String?;
+        final creatorInfo = createdById == null
+            ? null
+            : creatorInfoMap[createdById];
+        final createdByName = creatorInfo == null
+            ? 'Not recorded'
+            : _fullName(creatorInfo);
+        final createdByType = _creatorType(creatorInfo);
 
         reservations.add(ReservationHistory(
           reservationId: reservationId.toString(),
@@ -143,6 +167,8 @@ class ReservationsHistoryService {
           timeSchedule: timeSchedule,
           status: reservation['status'] ?? 'Pending',
           dateCreated: _formatDateTime(createdAt),
+          createdByName: createdByName,
+          createdByType: createdByType,
           items: itemsMap[reservationId],
         ));
       }
@@ -191,6 +217,7 @@ class ReservationsHistoryService {
           .select('''
             reservation_id,
             user_id,
+            created_by,
             room_id,
             reservation_date,
             start_time,
@@ -258,6 +285,15 @@ class ReservationsHistoryService {
       }
 
       final userInfo = reservationsResponse['user_info'];
+      final createdById = reservationsResponse['created_by'] as String?;
+      Map<String, dynamic>? creatorInfo;
+      if (createdById != null) {
+        creatorInfo = await _client
+            .from('user_info')
+            .select('id, username, email, first_name, last_name, role')
+            .eq('id', createdById)
+            .maybeSingle();
+      }
       final room = reservationsResponse['rooms'];
 
       // Determine reservation type
@@ -302,6 +338,10 @@ class ReservationsHistoryService {
         timeSchedule: timeSchedule,
         status: reservationsResponse['status'] ?? 'Pending',
         dateCreated: _formatDateTime(createdAt),
+        createdByName: creatorInfo == null
+            ? 'Not recorded'
+            : _fullName(creatorInfo),
+        createdByType: _creatorType(creatorInfo),
         items: items.isNotEmpty ? items : null,
       );
     } catch (e) {
@@ -316,6 +356,14 @@ class ReservationsHistoryService {
         .where((part) => part.isNotEmpty)
         .join(' ');
     return fullName.isNotEmpty ? fullName : 'Unknown User';
+  }
+
+  String _creatorType(Map<String, dynamic>? creatorInfo) {
+    if (creatorInfo == null) return 'Not recorded';
+    final role = creatorInfo['role']?.toString().toLowerCase();
+    return role == 'admin' || role == 'administrator'
+        ? 'Admin'
+        : 'Self-submitted';
   }
 
   String _formatDate(dynamic date) {

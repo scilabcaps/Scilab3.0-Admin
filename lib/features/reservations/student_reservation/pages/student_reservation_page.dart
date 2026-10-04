@@ -117,17 +117,29 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
   }
 
   Widget _buildStatsCards() {
-    final pending = _controller.reservations.where((r) => r.status.toLowerCase() == 'pending').length;
+    final pending = _controller.reservations
+        .where((r) => r.status.toLowerCase() == 'pending')
+        .length;
     final total = _controller.reservations.length;
 
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard('Pending', pending, const Color(0xFFFF9800), Icons.pending),
+          child: _buildStatCard(
+            'Pending',
+            pending,
+            const Color(0xFFFF9800),
+            Icons.pending,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Total', total, const Color(0xFF2196F3), Icons.list),
+          child: _buildStatCard(
+            'Total',
+            total,
+            const Color(0xFF2196F3),
+            Icons.list,
+          ),
         ),
       ],
     );
@@ -225,10 +237,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
           const SizedBox(width: 16),
           Text(
             'Showing: ${_filteredReservations.length} reservations',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
           ),
         ],
       ),
@@ -237,16 +246,27 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
 
   List<StudentReservation> get _filteredReservations {
     var reservations = _controller.filteredReservations;
-    
+
     if (_searchController.text.isNotEmpty) {
-      reservations = reservations.where((r) => 
-        r.studentName.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-        r.yearSection.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-        r.professor.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-        r.resources.toLowerCase().contains(_searchController.text.toLowerCase())
-      ).toList();
+      reservations = reservations
+          .where(
+            (r) =>
+                r.studentName.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ) ||
+                r.yearSection.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ) ||
+                r.professor.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ) ||
+                r.resources.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ),
+          )
+          .toList();
     }
-    
+
     return reservations;
   }
 
@@ -276,7 +296,9 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
           Flexible(
             child: SingleChildScrollView(
               child: Column(
-                children: filteredReservations.map((reservation) => _buildReservationRow(reservation)).toList(),
+                children: filteredReservations
+                    .map((reservation) => _buildReservationRow(reservation))
+                    .toList(),
               ),
             ),
           ),
@@ -298,14 +320,94 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Student Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 3, child: Text('Resources', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Year & Section', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Professor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Student Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Date',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Time',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Resources',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Year & Section',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Professor',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Status',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -315,9 +417,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
@@ -373,10 +473,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
               maxLines: 1,
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: _buildStatusBadge(reservation.status),
-          ),
+          Expanded(flex: 2, child: _buildStatusBadge(reservation.status)),
           Expanded(
             flex: 2,
             child: SizedBox(
@@ -386,12 +483,20 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text('View Details', style: TextStyle(fontSize: 13)),
+                child: const Text(
+                  'View Details',
+                  style: TextStyle(fontSize: 13),
+                ),
               ),
             ),
           ),
@@ -417,14 +522,18 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
             children: [
               IconButton(
                 onPressed: _controller.currentPage > 1
-                    ? () => _controller.loadReservations(page: _controller.currentPage - 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage - 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_left),
                 tooltip: 'Previous page',
               ),
               IconButton(
                 onPressed: _controller.currentPage < _controller.totalPages
-                    ? () => _controller.loadReservations(page: _controller.currentPage + 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage + 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_right),
                 tooltip: 'Next page',
@@ -461,10 +570,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
           const SizedBox(height: 16),
           const Text(
             'No pending student reservations',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
       ),
@@ -472,18 +578,21 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
   }
 
   Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: _controller.getStatusColor(status),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: _controller.getStatusTextColor(status),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: _controller.getStatusColor(status),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          status,
+          style: TextStyle(
+            color: _controller.getStatusTextColor(status),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

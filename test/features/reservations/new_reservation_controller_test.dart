@@ -27,6 +27,18 @@ void main() {
     expect(controller.selectedRoom?.resource.id, gateway.roomTwo.id);
   });
 
+  test('weekend dates cannot be selected', () async {
+    final weekday = controller.selectedDate;
+    final saturday = weekday.add(
+      Duration(days: DateTime.saturday - weekday.weekday),
+    );
+    final before = controller.selectedDate;
+
+    await controller.selectDate(saturday);
+
+    expect(controller.selectedDate, before);
+  });
+
   test('equipment and chemical quantities cannot exceed stock', () {
     expect(controller.addResource(gateway.equipment), isTrue);
     expect(controller.changeQuantity(gateway.equipment.key, 1), isTrue);

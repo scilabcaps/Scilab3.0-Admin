@@ -80,7 +80,9 @@ class _ReservationReviewDialogState extends State<ReservationReviewDialog> {
       ),
       content: SizedBox(
         width: 620,
-        height: 520,
+        // The account step needs room for searching and scrolling. The review
+        // step is compact and should size to its actual summary content.
+        height: _step == 0 ? 520 : 330,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: _step == 0

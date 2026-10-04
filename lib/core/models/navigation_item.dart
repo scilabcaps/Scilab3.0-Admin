@@ -39,6 +39,11 @@ final navigationItems = [
     icon: Icons.calendar_month,
     subItems: [
       NavigationItem(
+        title: 'New Reservation',
+        type: NavigationItemType.reservations,
+        icon: Icons.add_box,
+      ),
+      NavigationItem(
         title: 'Reservation History',
         type: NavigationItemType.reservations,
         icon: Icons.history,
@@ -57,6 +62,11 @@ final navigationItems = [
         title: 'Ongoing Reservations',
         type: NavigationItemType.reservations,
         icon: Icons.pending_actions,
+      ),
+      NavigationItem(
+        title: 'Upcoming Reservations',
+        type: NavigationItemType.reservations,
+        icon: Icons.event_available,
       ),
     ],
   ),
@@ -80,6 +90,11 @@ final navigationItems = [
         type: NavigationItemType.roomResources,
         icon: Icons.assignment_return,
       ),
+      NavigationItem(
+        title: 'Announcements',
+        type: NavigationItemType.roomResources,
+        icon: Icons.campaign,
+      ),
     ],
   ),
   NavigationItem(
@@ -87,11 +102,6 @@ final navigationItems = [
     type: NavigationItemType.userManagement,
     icon: Icons.people,
     subItems: [
-      NavigationItem(
-        title: 'Accounts Approvals',
-        type: NavigationItemType.userManagement,
-        icon: Icons.approval,
-      ),
       NavigationItem(
         title: 'Manage Professors',
         type: NavigationItemType.userManagement,

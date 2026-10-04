@@ -4,6 +4,9 @@ import '../services/ongoing_reservation_service.dart';
 import '../../../audit/services/audit_service.dart';
 
 class OngoingReservationController extends ChangeNotifier {
+  OngoingReservationController({this.upcoming = false});
+
+  final bool upcoming;
   final OngoingReservationService _service = OngoingReservationService();
   final AuditService _auditService = AuditService();
   List<OngoingReservation> _reservations = [];
@@ -39,8 +42,12 @@ class OngoingReservationController extends ChangeNotifier {
   Future<void> loadReservations({int? page}) async {
     try {
       if (page != null) _currentPage = page;
-      _reservations = await _service.fetchOngoingReservations(page: _currentPage, limit: _limit);
-      _totalRows = await _service.countOngoingReservations();
+      _reservations = await _service.fetchOngoingReservations(
+        page: _currentPage,
+        limit: _limit,
+        upcoming: upcoming,
+      );
+      _totalRows = await _service.countOngoingReservations(upcoming: upcoming);
       notifyListeners();
     } catch (e) {
       _reservations = [];

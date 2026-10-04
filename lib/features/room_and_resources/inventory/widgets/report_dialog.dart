@@ -78,7 +78,9 @@ class _ReportDialogState extends State<ReportDialog> {
 
     // Filter by stock level
     if (selectedStockLevel.isNotEmpty) {
-      items = items.where((item) => item.stockLevel == selectedStockLevel).toList();
+      items = items
+          .where((item) => item.stockLevel == selectedStockLevel)
+          .toList();
     }
 
     return items;
@@ -88,7 +90,10 @@ class _ReportDialogState extends State<ReportDialog> {
     final startIndex = (currentPage - 1) * itemsPerPage;
     final endIndex = startIndex + itemsPerPage;
     return filteredItems.length > startIndex
-        ? filteredItems.sublist(startIndex, endIndex > filteredItems.length ? filteredItems.length : endIndex)
+        ? filteredItems.sublist(
+            startIndex,
+            endIndex > filteredItems.length ? filteredItems.length : endIndex,
+          )
         : [];
   }
 
@@ -97,10 +102,10 @@ class _ReportDialogState extends State<ReportDialog> {
   Future<void> _exportToExcel() async {
     try {
       final excelFile = excel.Excel.createExcel();
-      
+
       // Delete default sheet if it exists
       excelFile.delete('Sheet1');
-      
+
       final sheet = excelFile['Inventory Report'];
 
       // Add headers with styling
@@ -123,25 +128,41 @@ class _ReportDialogState extends State<ReportDialog> {
 
       // Apply header style to first row
       for (int i = 0; i < 7; i++) {
-        sheet.cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0)).cellStyle = headerStyle;
+        sheet
+                .cell(
+                  excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+                )
+                .cellStyle =
+            headerStyle;
       }
 
       // Add data - use filtered items if filters are applied, otherwise use all items
-      final itemsToExport = filteredItems.isNotEmpty ? filteredItems : widget.inventoryItems;
-      
+      final itemsToExport = filteredItems.isNotEmpty
+          ? filteredItems
+          : widget.inventoryItems;
+
       debugPrint('Exporting ${itemsToExport.length} items to Excel');
       debugPrint('Total inventory items: ${widget.inventoryItems.length}');
       debugPrint('Filtered items: ${filteredItems.length}');
-      
+
       // Track max lengths for each column to auto-adjust widths
-      final List<int> maxColumnLengths = [10, 8, 8, 10, 11, 16, 10]; // Initial values based on headers
+      final List<int> maxColumnLengths = [
+        10,
+        8,
+        8,
+        10,
+        11,
+        16,
+        10,
+      ]; // Initial values based on headers
 
       for (final item in itemsToExport) {
         String formattedDate = '-';
         if (item.lastUpdated != null && item.lastUpdated != '-') {
           try {
             final dateTime = DateTime.parse(item.lastUpdated!);
-            formattedDate = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+            formattedDate =
+                '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
           } catch (e) {
             formattedDate = item.lastUpdated ?? '-';
           }
@@ -161,14 +182,14 @@ class _ReportDialogState extends State<ReportDialog> {
           formattedDate,
           formattedExpiration,
         ];
-        
+
         // Update max lengths
         for (int i = 0; i < values.length; i++) {
           if (values[i].length > maxColumnLengths[i]) {
             maxColumnLengths[i] = values[i].length;
           }
         }
-        
+
         sheet.appendRow([
           excel.TextCellValue(item.itemName),
           excel.TextCellValue(item.category),
@@ -181,12 +202,13 @@ class _ReportDialogState extends State<ReportDialog> {
           excel.TextCellValue(formattedExpiration),
         ]);
       }
-      
+
       debugPrint('Excel rows added: ${itemsToExport.length}');
 
       // Auto-adjust column widths based on max content length
       for (int i = 0; i < maxColumnLengths.length; i++) {
-        final columnWidth = (maxColumnLengths[i] * 1.2).round(); // Add some padding
+        final columnWidth = (maxColumnLengths[i] * 1.2)
+            .round(); // Add some padding
         sheet.setColumnWidth(i, columnWidth.toDouble());
       }
 
@@ -196,7 +218,8 @@ class _ReportDialogState extends State<ReportDialog> {
       // Let user choose save location
       final result = await FilePicker.platform.saveFile(
         dialogTitle: 'Save Inventory Report',
-        fileName: 'inventory_report_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        fileName:
+            'inventory_report_${DateTime.now().millisecondsSinceEpoch}.xlsx',
         type: FileType.custom,
         allowedExtensions: ['xlsx'],
       );
@@ -206,7 +229,7 @@ class _ReportDialogState extends State<ReportDialog> {
         if (bytes != null) {
           final file = File(result);
           await file.writeAsBytes(bytes);
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -221,7 +244,9 @@ class _ReportDialogState extends State<ReportDialog> {
               context: context,
               builder: (context) => AlertDialog(
                 title: const Text('Open Report?'),
-                content: const Text('Do you want to open the generated report?'),
+                content: const Text(
+                  'Do you want to open the generated report?',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -259,96 +284,132 @@ class _ReportDialogState extends State<ReportDialog> {
   Future<void> _exportToPdf() async {
     try {
       final regular = pw.Font.ttf(
-          await rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
+        await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+      );
       final bold = pw.Font.ttf(
-          await rootBundle.load('assets/fonts/Roboto-Medium.ttf'));
-      final itemsToExport =
-          filteredItems.isNotEmpty ? filteredItems : widget.inventoryItems;
-      final document = pw.Document(title: 'Scilab Inventory Report', author: 'Scilab');
-      final rows = itemsToExport.map((item) => [
-        item.itemName,
-        item.category,
-        '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
-        item.status,
-        item.stockLevel,
-        item.lastUpdated ?? '-',
-        item.expiration == null || item.expiration!.isEmpty
-            ? '-'
-            : _formatDate(item.expiration),
-      ]).toList();
+        await rootBundle.load('assets/fonts/Roboto-Medium.ttf'),
+      );
+      final itemsToExport = filteredItems.isNotEmpty
+          ? filteredItems
+          : widget.inventoryItems;
+      final document = pw.Document(
+        title: 'Scilab Inventory Report',
+        author: 'Scilab',
+      );
+      final rows = itemsToExport
+          .map(
+            (item) => [
+              item.itemName,
+              item.category,
+              '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
+              item.status,
+              item.stockLevel,
+              item.lastUpdated ?? '-',
+              item.expiration == null || item.expiration!.isEmpty
+                  ? '-'
+                  : _formatDate(item.expiration),
+            ],
+          )
+          .toList();
 
-      document.addPage(pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(28),
-        maxPages: itemsToExport.length + 20,
-        theme: pw.ThemeData.withFont(base: regular, bold: bold),
-        header: (_) => pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 12),
-          child: pw.Text('Scilab Inventory Report',
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-        ),
-        footer: (context) => pw.Align(
-          alignment: pw.Alignment.centerRight,
-          child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
-              style: const pw.TextStyle(fontSize: 8)),
-        ),
-        build: (_) => [
-          pw.Text(
+      document.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(28),
+          maxPages: itemsToExport.length + 20,
+          theme: pw.ThemeData.withFont(base: regular, bold: bold),
+          header: (_) => pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 12),
+            child: pw.Text(
+              'Scilab Inventory Report',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          footer: (context) => pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              'Page ${context.pageNumber} of ${context.pagesCount}',
+              style: const pw.TextStyle(fontSize: 8),
+            ),
+          ),
+          build: (_) => [
+            pw.Text(
               'Category: ${selectedCategory == 'all' ? 'All' : selectedCategory} | '
               'Status: ${selectedStatus.isEmpty ? 'All' : selectedStatus} | '
               'Stock Level: ${selectedStockLevel.isEmpty ? 'All' : selectedStockLevel}',
-              style: const pw.TextStyle(fontSize: 9)),
-          pw.Text(
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            pw.Text(
               'Generated: ${_formatDateTime(DateTime.now())} | Records: ${itemsToExport.length}',
-              style: const pw.TextStyle(fontSize: 9)),
-          pw.SizedBox(height: 10),
-          pw.TableHelper.fromTextArray(
-            headers: const [
-              'Item Name', 'Category', 'Quantity', 'Status', 'Stock Level',
-              'Last Updated', 'Expiration'
-            ],
-            data: rows,
-            columnWidths: const {
-              0: pw.FlexColumnWidth(2.0), 1: pw.FlexColumnWidth(1.2),
-              2: pw.FlexColumnWidth(0.8), 3: pw.FlexColumnWidth(1.2),
-              4: pw.FlexColumnWidth(1.2), 5: pw.FlexColumnWidth(1.7),
-              6: pw.FlexColumnWidth(1.4),
-            },
-            headerAlignment: pw.Alignment.centerLeft,
-            headerStyle: pw.TextStyle(fontSize: 8, color: PdfColors.white,
-                fontWeight: pw.FontWeight.bold),
-            headerDecoration:
-                const pw.BoxDecoration(color: PdfColor.fromInt(0xFF245C35)),
-            cellStyle: const pw.TextStyle(fontSize: 7),
-            cellPadding: const pw.EdgeInsets.all(4),
-            oddRowDecoration:
-                const pw.BoxDecoration(color: PdfColors.grey100),
-            border: null,
-          ),
-        ],
-      ));
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            pw.SizedBox(height: 10),
+            pw.TableHelper.fromTextArray(
+              headers: const [
+                'Item Name',
+                'Category',
+                'Quantity',
+                'Status',
+                'Stock Level',
+                'Last Updated',
+                'Expiration',
+              ],
+              data: rows,
+              columnWidths: const {
+                0: pw.FlexColumnWidth(2.0),
+                1: pw.FlexColumnWidth(1.2),
+                2: pw.FlexColumnWidth(0.8),
+                3: pw.FlexColumnWidth(1.2),
+                4: pw.FlexColumnWidth(1.2),
+                5: pw.FlexColumnWidth(1.7),
+                6: pw.FlexColumnWidth(1.4),
+              },
+              headerAlignment: pw.Alignment.centerLeft,
+              headerStyle: pw.TextStyle(
+                fontSize: 8,
+                color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              headerDecoration: const pw.BoxDecoration(
+                color: PdfColor.fromInt(0xFF245C35),
+              ),
+              cellStyle: const pw.TextStyle(fontSize: 7),
+              cellPadding: const pw.EdgeInsets.all(4),
+              oddRowDecoration: const pw.BoxDecoration(
+                color: PdfColors.grey100,
+              ),
+              border: null,
+            ),
+          ],
+        ),
+      );
 
       final result = await FilePicker.platform.saveFile(
         dialogTitle: 'Save Inventory Report',
-        fileName: 'inventory_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        fileName:
+            'inventory_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
       if (result == null) return;
       await File(result).writeAsBytes(await document.save(), flush: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('PDF report saved to: $result'),
-        duration: const Duration(seconds: 3),
-        backgroundColor: const Color(0xFF31CB00),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF report saved to: $result'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFF31CB00),
+        ),
+      );
       await _askToOpenReport(result);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error exporting to PDF: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting to PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -369,15 +430,18 @@ class _ReportDialogState extends State<ReportDialog> {
         content: const Text('Do you want to open the generated report?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('No')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('No'),
+          ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
               await OpenFile.open(path);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF31CB00),
-                foregroundColor: Colors.white),
+              backgroundColor: const Color(0xFF31CB00),
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Yes'),
           ),
         ],
@@ -393,8 +457,18 @@ class _ReportDialogState extends State<ReportDialog> {
     try {
       final dateTime = DateTime.parse(dateStr);
       final months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
       return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
     } catch (e) {
@@ -502,10 +576,7 @@ class _ReportDialogState extends State<ReportDialog> {
                 children: [
                   const Text(
                     'Inventory Report Generation',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Row(
                     children: [
@@ -526,9 +597,7 @@ class _ReportDialogState extends State<ReportDialog> {
               const SizedBox(height: 20),
               _buildFilters(),
               const SizedBox(height: 20),
-              Expanded(
-                child: _buildReportResults(),
-              ),
+              Expanded(child: _buildReportResults()),
             ],
           ),
         ),
@@ -556,9 +625,15 @@ class _ReportDialogState extends State<ReportDialog> {
                 value: selectedCategory,
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('All Categories')),
-                  DropdownMenuItem(value: 'equipment', child: Text('Equipment')),
+                  DropdownMenuItem(
+                    value: 'equipment',
+                    child: Text('Equipment'),
+                  ),
                   DropdownMenuItem(value: 'chemical', child: Text('Chemical')),
-                  DropdownMenuItem(value: 'glassware', child: Text('Glassware')),
+                  DropdownMenuItem(
+                    value: 'glassware',
+                    child: Text('Glassware'),
+                  ),
                 ],
                 onChanged: (value) {
                   setState(() {
@@ -572,7 +647,10 @@ class _ReportDialogState extends State<ReportDialog> {
                 value: selectedStatus,
                 items: const [
                   DropdownMenuItem(value: '', child: Text('All Statuses')),
-                  DropdownMenuItem(value: 'Available', child: Text('Available')),
+                  DropdownMenuItem(
+                    value: 'Available',
+                    child: Text('Available'),
+                  ),
                   DropdownMenuItem(value: 'In Use', child: Text('In Use')),
                   DropdownMenuItem(value: 'Expired', child: Text('Expired')),
                 ],
@@ -589,7 +667,10 @@ class _ReportDialogState extends State<ReportDialog> {
                 items: const [
                   DropdownMenuItem(value: '', child: Text('All Levels')),
                   DropdownMenuItem(value: 'Low', child: Text('Low Stock')),
-                  DropdownMenuItem(value: 'Medium', child: Text('Medium Stock')),
+                  DropdownMenuItem(
+                    value: 'Medium',
+                    child: Text('Medium Stock'),
+                  ),
                   DropdownMenuItem(value: 'High', child: Text('High Stock')),
                   DropdownMenuItem(value: 'Out', child: Text('Out of Stock')),
                 ],
@@ -652,10 +733,7 @@ class _ReportDialogState extends State<ReportDialog> {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
@@ -744,10 +822,7 @@ class _ReportDialogState extends State<ReportDialog> {
                   ? 'Try changing your filters to see more items.'
                   : 'Inventory items will appear here once they are added.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
             if (hasInventory) ...[
               const SizedBox(height: 20),
@@ -786,13 +861,83 @@ class _ReportDialogState extends State<ReportDialog> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Item Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 1, child: Text('Quantity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Stock Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Last Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Expiration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Item Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Category',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              'Quantity',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Status',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Stock Level',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Last Updated',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Expiration',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -806,78 +951,64 @@ class _ReportDialogState extends State<ReportDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
-          Expanded(
-            flex: 3,
-            child: Text(item.itemName),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(item.category),
-          ),
+          Expanded(flex: 3, child: Text(item.itemName)),
+          Expanded(flex: 2, child: Text(item.category)),
           Expanded(
             flex: 1,
             child: Text(
               '${item.quantity}${item.category.toLowerCase() == 'chemical' ? ' ${item.unit ?? 'mL'}' : ' pieces'}',
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: _buildStatusBadge(item.status),
-          ),
-          Expanded(
-            flex: 2,
-            child: _buildStockLevelBadge(item.stockLevel),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(_formatDate(item.lastUpdated)),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(formattedExpiration),
-          ),
+          Expanded(flex: 2, child: _buildStatusBadge(item.status)),
+          Expanded(flex: 2, child: _buildStockLevelBadge(item.stockLevel)),
+          Expanded(flex: 2, child: Text(_formatDate(item.lastUpdated))),
+          Expanded(flex: 2, child: Text(formattedExpiration)),
         ],
       ),
     );
   }
 
   Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: _getStatusColor(status),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: _getStatusTextColor(status),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: _getStatusColor(status),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          status,
+          style: TextStyle(
+            color: _getStatusTextColor(status),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStockLevelBadge(String stockLevel) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: _getStockLevelColor(stockLevel),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        stockLevel,
-        style: TextStyle(
-          color: _getStockLevelTextColor(stockLevel),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: _getStockLevelColor(stockLevel),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          stockLevel,
+          style: TextStyle(
+            color: _getStockLevelTextColor(stockLevel),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

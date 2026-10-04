@@ -379,6 +379,9 @@ class _NewReservationPageState extends State<NewReservationPage> {
                 : _controller.selectedDate,
             firstDate: today,
             lastDate: DateTime(today.year + 2, today.month, today.day),
+            selectableDayPredicate: (date) =>
+                date.weekday != DateTime.saturday &&
+                date.weekday != DateTime.sunday,
             onDateChanged: _controller.selectDate,
           ),
         ),

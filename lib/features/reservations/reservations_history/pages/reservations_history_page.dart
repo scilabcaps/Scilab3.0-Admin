@@ -13,7 +13,8 @@ class ReservationsHistoryPage extends StatefulWidget {
   final String? initialReservationId;
 
   @override
-  State<ReservationsHistoryPage> createState() => _ReservationsHistoryPageState();
+  State<ReservationsHistoryPage> createState() =>
+      _ReservationsHistoryPageState();
 }
 
 class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
@@ -112,9 +113,11 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       final reservations = await _controller.getReservationsForReport();
       if (!mounted) return;
       if (reservations.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No reservation records match the selected filters.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No reservation records match the selected filters.'),
+          ),
+        );
         return;
       }
 
@@ -142,9 +145,13 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       );
       if (kIsWeb) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download started: ${reservations.length} reservations.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Download started: ${reservations.length} reservations.',
+            ),
+          ),
+        );
         return;
       }
       if (path == null) return;
@@ -154,15 +161,19 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
         await writeReservationHistoryFile(path, bytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Saved ${reservations.length} reservations to $path'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Saved ${reservations.length} reservations to $path'),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not generate report: $error'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -244,19 +255,18 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
               tooltip: 'Export all records matching the selected filters',
               onSelected: _exportReport,
               itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'xlsx',
-                  child: Text('Excel (.xlsx)'),
-                ),
+                PopupMenuItem(value: 'xlsx', child: Text('Excel (.xlsx)')),
                 PopupMenuItem(value: 'pdf', child: Text('PDF (.pdf)')),
               ],
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: _isExporting || _controller.isLoading
                       ? Colors.grey.shade200
-                          : const Color(0xFF31CB00),
+                      : const Color(0xFF31CB00),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -405,7 +415,10 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
@@ -666,7 +679,9 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           Flexible(
             child: SingleChildScrollView(
               child: Column(
-                children: filteredReservations.map((reservation) => _buildReservationRow(reservation)).toList(),
+                children: filteredReservations
+                    .map((reservation) => _buildReservationRow(reservation))
+                    .toList(),
               ),
             ),
           ),
@@ -688,14 +703,105 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Full Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 3, child: Text('Room / Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Full Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Role',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Created By',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Type',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Room / Item',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Date',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Time',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Status',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -705,9 +811,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
@@ -718,10 +822,8 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
               style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: _buildRoleBadge(reservation.role),
-          ),
+          Expanded(flex: 2, child: _buildRoleBadge(reservation.role)),
+          Expanded(flex: 3, child: _buildCreatorBadge(reservation)),
           Expanded(
             flex: 2,
             child: Text(
@@ -752,10 +854,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
               style: const TextStyle(fontSize: 14),
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: _buildStatusBadge(reservation.status),
-          ),
+          Expanded(flex: 2, child: _buildStatusBadge(reservation.status)),
           Expanded(
             flex: 2,
             child: SizedBox(
@@ -765,12 +864,20 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text('View Receipt', style: TextStyle(fontSize: 13)),
+                child: const Text(
+                  'View Receipt',
+                  style: TextStyle(fontSize: 13),
+                ),
               ),
             ),
           ),
@@ -796,14 +903,18 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
             children: [
               IconButton(
                 onPressed: _controller.currentPage > 1
-                    ? () => _controller.loadReservations(page: _controller.currentPage - 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage - 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_left),
                 tooltip: 'Previous page',
               ),
               IconButton(
                 onPressed: _controller.currentPage < _controller.totalPages
-                    ? () => _controller.loadReservations(page: _controller.currentPage + 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage + 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_right),
                 tooltip: 'Next page',
@@ -840,18 +951,12 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           const SizedBox(height: 16),
           const Text(
             'No reservations found',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
           const SizedBox(height: 8),
           Text(
             'Try adjusting your filters or search criteria',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
         ],
       ),
@@ -859,36 +964,79 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
   }
 
   Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: _controller.getStatusColor(status),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: _controller.getStatusTextColor(status),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: _controller.getStatusColor(status),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          status,
+          style: TextStyle(
+            color: _controller.getStatusTextColor(status),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildRoleBadge(String role) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _controller.getRoleColor(role),
-        borderRadius: BorderRadius.circular(16),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: _controller.getRoleColor(role),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          role,
+          style: TextStyle(
+            color: _controller.getRoleTextColor(role),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
-      child: Text(
-        role,
-        style: TextStyle(
-          color: _controller.getRoleTextColor(role),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+    );
+  }
+
+  Widget _buildCreatorBadge(ReservationHistory reservation) {
+    final isAdmin = reservation.createdByType == 'Admin';
+    final isRecorded = reservation.createdByType != 'Not recorded';
+    final color = isAdmin
+        ? const Color(0xFFE8F5E9)
+        : isRecorded
+        ? Colors.blue.shade50
+        : Colors.grey.shade200;
+    final textColor = isAdmin
+        ? const Color(0xFF2E7D32)
+        : isRecorded
+        ? Colors.blue.shade700
+        : Colors.grey.shade700;
+    return Tooltip(
+      message: '${reservation.createdByType}: ${reservation.createdByName}',
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            isAdmin ? 'Admin' : reservation.createdByType,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );

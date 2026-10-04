@@ -34,6 +34,13 @@ dependency-reduced-pom.xml
 .env
 .env.local
 
+# Agent/task instructions and local task records
+.agent/agents/
+.tasks_archive/
+.agent/
+.tasks/
+AGENTS.md
+
 # Android
 android/app/build/
 android/.gradle/

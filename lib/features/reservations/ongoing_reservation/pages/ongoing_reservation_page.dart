@@ -4,20 +4,22 @@ import '../models/ongoing_reservation_model.dart';
 import '../widgets/return_modal.dart';
 
 class OngoingReservationPage extends StatefulWidget {
-  const OngoingReservationPage({super.key});
+  const OngoingReservationPage({super.key, this.upcoming = false});
+
+  final bool upcoming;
 
   @override
   State<OngoingReservationPage> createState() => _OngoingReservationPageState();
 }
 
 class _OngoingReservationPageState extends State<OngoingReservationPage> {
-  final OngoingReservationController _controller =
-      OngoingReservationController();
+  late final OngoingReservationController _controller;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _controller = OngoingReservationController(upcoming: widget.upcoming);
     _controller.loadReservations();
   }
 
@@ -32,9 +34,25 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
     showDialog(
       context: context,
       useRootNavigator: true,
-      builder: (context) => ReturnModal(
-        reservation: reservation,
-        controller: _controller,
+      builder: (context) =>
+          ReturnModal(reservation: reservation, controller: _controller),
+    );
+  }
+
+  void _showUpcomingDetails(OngoingReservation reservation) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Upcoming Reservation'),
+        content: Text(
+          '${reservation.name}\n${reservation.date}\n${reservation.time}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -70,12 +88,9 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
-          'Ongoing Reservations',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
+        Text(
+          widget.upcoming ? 'Upcoming Reservations' : 'Ongoing Reservations',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
         IconButton(
           onPressed: () {
@@ -93,27 +108,55 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
   }
 
   Widget _buildStatsCards() {
-    final ongoing = _controller.reservations.where((r) => r.status.toLowerCase() == 'ongoing').length;
-    final overdue = _controller.reservations.where((r) => r.status.toLowerCase() == 'overdue').length;
-    final dueSoon = _controller.reservations.where((r) => r.status.toLowerCase() == 'due soon').length;
-    final completed = _controller.reservations.where((r) => r.status.toLowerCase() == 'completed').length;
+    final ongoing = _controller.reservations
+        .where((r) => r.status.toLowerCase() == 'ongoing')
+        .length;
+    final overdue = _controller.reservations
+        .where((r) => r.status.toLowerCase() == 'overdue')
+        .length;
+    final dueSoon = _controller.reservations
+        .where((r) => r.status.toLowerCase() == 'due soon')
+        .length;
+    final completed = _controller.reservations
+        .where((r) => r.status.toLowerCase() == 'completed')
+        .length;
 
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard('Ongoing', ongoing, const Color(0xFF2196F3), Icons.event),
+          child: _buildStatCard(
+            widget.upcoming ? 'Upcoming' : 'Ongoing',
+            widget.upcoming ? _controller.reservations.length : ongoing,
+            const Color(0xFF2196F3),
+            Icons.event,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Overdue', overdue, const Color(0xFFF44336), Icons.warning),
+          child: _buildStatCard(
+            'Overdue',
+            overdue,
+            const Color(0xFFF44336),
+            Icons.warning,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Due Soon', dueSoon, const Color(0xFFFF9800), Icons.access_time),
+          child: _buildStatCard(
+            'Due Soon',
+            dueSoon,
+            const Color(0xFFFF9800),
+            Icons.access_time,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Completed', completed, const Color(0xFF4CAF50), Icons.check_circle),
+          child: _buildStatCard(
+            'Completed',
+            completed,
+            const Color(0xFF4CAF50),
+            Icons.check_circle,
+          ),
         ),
       ],
     );
@@ -209,7 +252,7 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             'Filter:',
             style: TextStyle(
               fontWeight: FontWeight.w600,
@@ -225,10 +268,7 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
           const SizedBox(width: 16),
           Text(
             'Showing: ${_filteredReservations.length} reservations',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
           ),
         ],
       ),
@@ -261,15 +301,25 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
 
   List<OngoingReservation> get _filteredReservations {
     var reservations = _controller.filteredReservations;
-    
+
     if (_searchController.text.isNotEmpty) {
-      reservations = reservations.where((r) => 
-        r.name.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-        r.programYear.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-        (r.professor?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false)
-      ).toList();
+      reservations = reservations
+          .where(
+            (r) =>
+                r.name.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ) ||
+                r.programYear.toLowerCase().contains(
+                  _searchController.text.toLowerCase(),
+                ) ||
+                (r.professor?.toLowerCase().contains(
+                      _searchController.text.toLowerCase(),
+                    ) ??
+                    false),
+          )
+          .toList();
     }
-    
+
     return reservations;
   }
 
@@ -299,7 +349,9 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
           Flexible(
             child: SingleChildScrollView(
               child: Column(
-                children: filteredReservations.map((reservation) => _buildReservationRow(reservation)).toList(),
+                children: filteredReservations
+                    .map((reservation) => _buildReservationRow(reservation))
+                    .toList(),
               ),
             ),
           ),
@@ -321,13 +373,83 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Program & Year', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Professor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Program & Year',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Professor',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Date',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Time',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Status',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -337,9 +459,7 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
@@ -386,24 +506,31 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: _buildStatusBadge(reservation.status),
-          ),
+          Expanded(flex: 2, child: _buildStatusBadge(reservation.status)),
           Expanded(
             flex: 2,
             child: SizedBox(
               height: 32,
               child: ElevatedButton(
-                onPressed: () => _showReturnModal(reservation),
+                onPressed: () => widget.upcoming
+                    ? _showUpcomingDetails(reservation)
+                    : _showReturnModal(reservation),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text('View Details', style: TextStyle(fontSize: 13)),
+                child: const Text(
+                  'View Details',
+                  style: TextStyle(fontSize: 13),
+                ),
               ),
             ),
           ),
@@ -429,14 +556,18 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
             children: [
               IconButton(
                 onPressed: _controller.currentPage > 1
-                    ? () => _controller.loadReservations(page: _controller.currentPage - 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage - 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_left),
                 tooltip: 'Previous page',
               ),
               IconButton(
                 onPressed: _controller.currentPage < _controller.totalPages
-                    ? () => _controller.loadReservations(page: _controller.currentPage + 1)
+                    ? () => _controller.loadReservations(
+                        page: _controller.currentPage + 1,
+                      )
                     : null,
                 icon: const Icon(Icons.chevron_right),
                 tooltip: 'Next page',
@@ -471,12 +602,11 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
             color: Colors.grey.shade400,
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No ongoing reservations',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+          Text(
+            widget.upcoming
+                ? 'No upcoming reservations'
+                : 'No ongoing reservations',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
       ),
@@ -484,18 +614,21 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
   }
 
   Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: _controller.getStatusColor(status),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: _controller.getStatusTextColor(status),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: _controller.getStatusColor(status),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          status,
+          style: TextStyle(
+            color: _controller.getStatusTextColor(status),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

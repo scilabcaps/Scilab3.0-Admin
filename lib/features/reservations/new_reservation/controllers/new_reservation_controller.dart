@@ -18,7 +18,7 @@ class NewReservationController extends ChangeNotifier {
   List<ReservationResource> _resources = [];
   List<ReservationTimeRange> _roomSchedule = [];
   ReservationResourceType _selectedType = ReservationResourceType.room;
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = _nextWeekday(DateTime.now());
   int? _startMinutes;
   int? _endMinutes;
   bool _isLoading = false;
@@ -43,6 +43,15 @@ class NewReservationController extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
   ReservationAccount? get selectedAccount => _selectedAccount;
+
+  static DateTime _nextWeekday(DateTime value) {
+    var date = DateTime(value.year, value.month, value.day);
+    while (date.weekday == DateTime.saturday ||
+        date.weekday == DateTime.sunday) {
+      date = date.add(const Duration(days: 1));
+    }
+    return date;
+  }
 
   List<ReservationResource> get visibleResources =>
       _resources.where((resource) => resource.type == _selectedType).toList();
@@ -163,6 +172,10 @@ class NewReservationController extends ChangeNotifier {
   }
 
   Future<void> selectDate(DateTime value) async {
+    if (value.weekday == DateTime.saturday ||
+        value.weekday == DateTime.sunday) {
+      return;
+    }
     _selectedDate = DateTime(value.year, value.month, value.day);
     _clearTime();
     notifyListeners();
@@ -249,6 +262,10 @@ class NewReservationController extends ChangeNotifier {
   }
 
   String? validate() {
+    if (_selectedDate.weekday == DateTime.saturday ||
+        _selectedDate.weekday == DateTime.sunday) {
+      return 'Reservations are only available Monday through Friday.';
+    }
     if (_cart.isEmpty) {
       return 'Add at least one room, chemical, equipment item, or glassware item.';
     }

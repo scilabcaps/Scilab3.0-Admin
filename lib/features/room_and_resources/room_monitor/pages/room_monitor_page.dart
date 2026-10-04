@@ -124,9 +124,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
 
   Widget _buildStatsCards() {
     final available = _controller.rooms.where((r) => r.status == 'Available').length;
-    final occupied = _controller.rooms.where((r) => r.status == 'Occupied').length;
     final maintenance = _controller.rooms.where((r) => r.status == 'Maintenance').length;
-    final overTime = _controller.rooms.where((r) => r.status == 'Over Time').length;
 
     return Row(
       children: [
@@ -135,15 +133,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Occupied', occupied, const Color(0xFF2196F3), Icons.people),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
           child: _buildStatCard('Maintenance', maintenance, const Color(0xFFFF9800), Icons.build),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard('Over Time', overTime, const Color(0xFFF44336), Icons.access_time),
         ),
       ],
     );
@@ -243,11 +233,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           const SizedBox(width: 8),
           _buildFilterChip('Available'),
           const SizedBox(width: 8),
-          _buildFilterChip('Occupied'),
-          const SizedBox(width: 8),
           _buildFilterChip('Maintenance'),
-          const SizedBox(width: 8),
-          _buildFilterChip('Over Time'),
         ],
       ),
     );
@@ -470,16 +456,17 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
   }
 
   Widget _buildStatusBadge(Room room) {
+    final status = room.status == 'Maintenance' ? 'Maintenance' : 'Available';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _controller.getStatusColor(room.status),
+        color: _controller.getStatusColor(status),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        room.status,
+        status,
         style: TextStyle(
-          color: _controller.getStatusTextColor(room.status),
+          color: _controller.getStatusTextColor(status),
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
@@ -520,7 +507,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: room.status,
+          value: room.status == 'Maintenance' ? 'Maintenance' : 'Available',
           isDense: true,
           style: const TextStyle(
             color: Colors.black87,
@@ -537,14 +524,6 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
             DropdownMenuItem(
               value: 'Maintenance',
               child: Text('Maintenance'),
-            ),
-            DropdownMenuItem(
-              value: 'Occupied',
-              child: Text('Occupied'),
-            ),
-            DropdownMenuItem(
-              value: 'Over Time',
-              child: Text('Over Time'),
             ),
           ],
           onChanged: (String? newStatus) {
@@ -601,7 +580,6 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
               ),
               items: const [
                 DropdownMenuItem(value: 'Available',child: Text('Available')),
-                DropdownMenuItem(value: 'Occupied',child: Text('Occupied')),
                 DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
               ],
               onChanged: (value) => statusController.text = value ?? 'Available',
@@ -646,7 +624,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
   void _showEditRoomDialog(Room room) {
     final nameController = TextEditingController(text: room.roomName);
     final capacityController = TextEditingController(text: room.capacity.toString());
-    String selectedStatus = room.status;
+    String selectedStatus = room.status == 'Maintenance' ? 'Maintenance' : 'Available';
 
     showDialog(
       context: context,
@@ -680,9 +658,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
               ),
               items: const [
                 DropdownMenuItem(value: 'Available',child: Text('Available')),
-                DropdownMenuItem(value: 'Occupied',child: Text('Occupied')),
                 DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
-                DropdownMenuItem(value: 'Over Time',child: Text('Over Time')),
               ],
               onChanged: (value) => selectedStatus = value ?? 'Available',
             ),

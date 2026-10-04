@@ -10,6 +10,7 @@ import '../../user_management/pages/accounts_approvals_page.dart';
 import '../../room_and_resources/room_monitor/pages/room_monitor_page.dart';
 import '../../room_and_resources/inventory/pages/inventory_page.dart';
 import '../../room_and_resources/unreturned_item/pages/unreturned_item_page.dart';
+import '../../room_and_resources/announcements/pages/announcements_page.dart';
 import '../../reservations/ongoing_reservation/pages/ongoing_reservation_page.dart';
 import '../../reservations/professor_reservation/pages/professor_reservation_page.dart';
 import '../../reservations/student_reservation/pages/student_reservation_page.dart';
@@ -60,12 +61,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'Room Monitor',
         'Inventory',
         'Unreturned Items',
+        'Announcements',
       ].contains(destination)) {
         _selectedItem = NavigationItemType.roomResources;
         _expandedItems.add(NavigationItemType.roomResources);
       } else if ([
         'New Reservation',
         'Ongoing Reservations',
+        'Upcoming Reservations',
         'Professor Reservations',
         'Student Reservations',
         'Reservation History',
@@ -441,6 +444,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return const InventoryPage();
         case 'Unreturned Items':
           return const UnreturnedItemPage();
+        case 'Announcements':
+          return const AnnouncementsPage();
         case 'Reservation History':
         return ReservationsHistoryPage(initialReservationId: _initialReservationId);
         case 'Professor Reservations':
@@ -456,7 +461,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onInitialReservationHandled: _clearInitialReservation,
           );
         case 'Ongoing Reservations':
-          return const OngoingReservationPage();
+          return const OngoingReservationPage(key: ValueKey('ongoing-reservations'));
+        case 'Upcoming Reservations':
+          return const OngoingReservationPage(
+            key: ValueKey('upcoming-reservations'),
+            upcoming: true,
+          );
       }
     }
 

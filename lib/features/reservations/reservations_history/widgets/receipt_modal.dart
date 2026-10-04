@@ -115,6 +115,11 @@ class _ReceiptModalState extends State<ReceiptModal> {
           const SizedBox(height: 8),
           _buildInfoRow('Role:', widget.reservation.role),
           const SizedBox(height: 8),
+          _buildInfoRow(
+            'Created By:',
+            '${widget.reservation.createdByType}: ${widget.reservation.createdByName}',
+          ),
+          const SizedBox(height: 8),
           _buildInfoRow('Reservation Type:', widget.reservation.reservationType),
           const SizedBox(height: 8),
           _buildInfoRow('Room / Item:', widget.reservation.roomItemReserved),

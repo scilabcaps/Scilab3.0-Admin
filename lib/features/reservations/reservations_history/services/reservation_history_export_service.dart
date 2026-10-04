@@ -10,6 +10,7 @@ class ReservationHistoryExportService {
     'Reservation ID',
     'Full Name',
     'Role',
+    'Created By',
     'Type',
     'Room / Item',
     'Date',
@@ -24,6 +25,7 @@ class ReservationHistoryExportService {
                 reservation.reservationId,
                 reservation.userName,
                 reservation.role,
+                '${reservation.createdByType}: ${reservation.createdByName}',
                 reservation.reservationType,
                 reservation.roomItemReserved,
                 reservation.reservationDate,
@@ -68,7 +70,7 @@ class ReservationHistoryExportService {
 
     const headerRowIndex = 3;
     const firstDataRowIndex = headerRowIndex + 1;
-    const widths = [18.0, 28.0, 15.0, 15.0, 32.0, 15.0, 22.0, 16.0, 20.0];
+    const widths = [18.0, 28.0, 15.0, 30.0, 15.0, 32.0, 15.0, 22.0, 16.0, 20.0];
     for (var column = 0; column < widths.length; column++) {
       sheet.setColumnWidth(column, widths[column]);
       sheet

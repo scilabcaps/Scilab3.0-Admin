@@ -56,7 +56,7 @@ class RoomController extends ChangeNotifier {
         reservationDate: '2026-06-28',
         startTime: '08:00',
         endTime: '10:00',
-        status: 'Occupied',
+        status: 'Available',
       ),
       Room(
         roomId: '2',

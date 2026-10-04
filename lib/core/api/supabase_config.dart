@@ -11,6 +11,7 @@ class SupabaseConfig {
   static const String tableUserInfo = 'user_info';
   static const String tableStockHistory = 'stock_history';
   static const String tableAuditLogs = 'audit_logs';
+  static const String tableAnnouncements = 'announcement';
 
   // Storage buckets
   static const String bucketAvatars = 'avatars';

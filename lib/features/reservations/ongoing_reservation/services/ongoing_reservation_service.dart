@@ -7,14 +7,15 @@ class OngoingReservationService {
   final CacheService _cache = CacheService();
 
   /// Fetch ongoing reservations with pagination
-  Future<List<OngoingReservation>> fetchOngoingReservations({int page = 1, int limit = 20}) async {
+  Future<List<OngoingReservation>> fetchOngoingReservations({
+    int page = 1,
+    int limit = 20,
+    bool upcoming = false,
+  }) async {
     try {
-      final start = (page - 1) * limit;
-      final end = start + limit - 1;
-
-      // Fetch paginated reservations with status 'Ongoing'
-      // Also catch student reservations where professor_approval = Approved
-      // but the status hasn't been synced to 'Ongoing' yet.
+      // Fetch active reservation statuses, then split by reservation date.
+      // The Ongoing and Upcoming screens are date-based and must not depend
+      // on the literal status text being 'Ongoing'.
       final reservationsResponse = await _client
           .from('reservations')
           .select('''
@@ -34,18 +35,33 @@ class OngoingReservationService {
             created_at,
             updated_at
           ''')
-          .eq('status', 'Ongoing')
-          .order('created_at', ascending: false)
-          .range(start, end);
+          .inFilter('status', ['Pending', 'Approved', 'Ongoing'])
+          .eq('is_deleted', false)
+          .order('reservation_date', ascending: true)
+          .order('start_time', ascending: true);
 
-      print('Fetched ${reservationsResponse.length} ongoing reservations from database');
+      final today = _dateOnly(DateTime.now());
+      final timeFiltered = reservationsResponse.where((reservation) {
+        final reservationDate = DateTime.parse(
+          reservation['reservation_date'].toString(),
+        );
+        return upcoming
+            ? reservationDate.isAfter(today)
+            : _dateOnly(reservationDate) == today;
+      }).toList();
+      final start = (page - 1) * limit;
+      final pageRows = timeFiltered.skip(start).take(limit).toList();
+
+      print(
+        'Fetched ${pageRows.length} ${upcoming ? 'upcoming' : 'ongoing'} reservations',
+      );
 
       // Fetch reservation items with asset info
-      final reservationIds = reservationsResponse
+      final reservationIds = pageRows
           .map((r) => r['reservation_id'] as int)
           .toSet()
           .toList();
-      
+
       final Map<int, List<Map<String, dynamic>>> itemsMap = {};
       if (reservationIds.isNotEmpty) {
         final itemsResponse = await _client
@@ -95,12 +111,17 @@ class OngoingReservationService {
       }
 
       // Fetch user info for all users
-      final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
+      final userIds = pageRows
+          .map((r) => r['user_id'] as String)
+          .toSet()
+          .toList();
       final Map<String, Map<String, dynamic>> userInfoMap = {};
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
             .from('user_info')
-            .select('id, username, email, first_name, last_name, role')
+            .select(
+              'id, username, email, first_name, last_name, role, course, year_section',
+            )
             .inFilter('id', userIds);
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
@@ -109,7 +130,7 @@ class OngoingReservationService {
 
       // Map reservations to OngoingReservation model
       List<OngoingReservation> reservations = [];
-      for (var reservation in reservationsResponse) {
+      for (var reservation in pageRows) {
         final reservationId = reservation['reservation_id'] as int;
         final userId = reservation['user_id'] as String?;
         final userInfo = userId != null ? userInfoMap[userId] : null;
@@ -118,19 +139,35 @@ class OngoingReservationService {
         String userType = 'Student';
         String name = '';
         String programYear = '';
-        
+
         if (userInfo != null) {
           final role = userInfo['role']?.toString().toLowerCase() ?? '';
           userType = role == 'professor' ? 'Professor' : 'Student';
-          
+
           final firstName = userInfo['first_name'] ?? '';
           final lastName = userInfo['last_name'] ?? '';
           name = firstName.isNotEmpty || lastName.isNotEmpty
               ? '$firstName $lastName'.trim()
               : userInfo['username'] ?? 'Unknown';
-          
+
           if (userType == 'Student') {
-            programYear = reservation['year_section']?.toString() ?? '';
+            final course =
+                (reservation['course']?.toString().trim().isNotEmpty == true
+                        ? reservation['course']
+                        : userInfo['course'])
+                    ?.toString()
+                    .trim();
+            final yearSection =
+                (reservation['year_section']?.toString().trim().isNotEmpty ==
+                            true
+                        ? reservation['year_section']
+                        : userInfo['year_section'])
+                    ?.toString()
+                    .trim();
+            programYear = [
+              if (course != null && course.isNotEmpty) course,
+              if (yearSection != null && yearSection.isNotEmpty) yearSection,
+            ].join(' · ');
           }
         }
 
@@ -148,50 +185,58 @@ class OngoingReservationService {
 
         // Format items from reservation_items and chemical_usage
         List<ReservedItem> items = [];
-        if (itemsMap.containsKey(reservationId) && itemsMap[reservationId]!.isNotEmpty) {
+        if (itemsMap.containsKey(reservationId) &&
+            itemsMap[reservationId]!.isNotEmpty) {
           final itemsData = itemsMap[reservationId]!;
-          items.addAll(itemsData.map((item) {
-            final asset = item['lab_assets'];
-            final itemName = asset != null ? (asset['item_name'] ?? '') : '';
-            final quantity = item['quantity_borrowed'] ?? 0;
-            final returnedQuantity = item['quantity_returned'] ?? 0;
+          items.addAll(
+            itemsData.map((item) {
+              final asset = item['lab_assets'];
+              final itemName = asset != null ? (asset['item_name'] ?? '') : '';
+              final quantity = item['quantity_borrowed'] ?? 0;
+              final returnedQuantity = item['quantity_returned'] ?? 0;
 
-            // Determine item status
-            String itemStatus = 'Pending';
-            if (returnedQuantity >= quantity) {
-              itemStatus = 'Returned';
-            } else if (returnedQuantity > 0) {
-              itemStatus = 'Partial';
-            }
+              // Determine item status
+              String itemStatus = 'Pending';
+              if (returnedQuantity >= quantity) {
+                itemStatus = 'Returned';
+              } else if (returnedQuantity > 0) {
+                itemStatus = 'Partial';
+              }
 
-            return ReservedItem(
-              itemId: item['detail_id'].toString(),
-              assetId: item['asset_id'].toString(),
-              itemName: itemName,
-              quantity: quantity,
-              returnedQuantity: returnedQuantity,
-              status: itemStatus,
-            );
-          }));
+              return ReservedItem(
+                itemId: item['detail_id'].toString(),
+                assetId: item['asset_id'].toString(),
+                itemName: itemName,
+                quantity: quantity,
+                returnedQuantity: returnedQuantity,
+                status: itemStatus,
+              );
+            }),
+          );
         }
 
         // Add chemical items
-        if (chemicalsMap.containsKey(reservationId) && chemicalsMap[reservationId]!.isNotEmpty) {
+        if (chemicalsMap.containsKey(reservationId) &&
+            chemicalsMap[reservationId]!.isNotEmpty) {
           final chemItems = chemicalsMap[reservationId]!;
           for (var chem in chemItems) {
             final chemicalData = chem['chemicals'];
-            final chemName = chemicalData != null ? (chemicalData['chemical_name'] ?? '') : '';
+            final chemName = chemicalData != null
+                ? (chemicalData['chemical_name'] ?? '')
+                : '';
             final quantityUsed = (chem['quantity_used'] ?? 0).toInt();
             final unit = chem['unit'] ?? '';
 
-            items.add(ReservedItem(
-              itemId: chem['usage_id'].toString(),
-              assetId: '',
-              itemName: '$chemName ($unit)',
-              quantity: quantityUsed,
-              returnedQuantity: 0,
-              status: 'Used',
-            ));
+            items.add(
+              ReservedItem(
+                itemId: chem['usage_id'].toString(),
+                assetId: '',
+                itemName: '$chemName ($unit)',
+                quantity: quantityUsed,
+                returnedQuantity: 0,
+                status: 'Used',
+              ),
+            );
           }
         }
 
@@ -199,18 +244,20 @@ class OngoingReservationService {
         final updatedAt = reservation['updated_at'];
         final formattedLastUpdated = _formatDate(updatedAt);
 
-        reservations.add(OngoingReservation(
-          reservationId: reservationId.toString(),
-          name: name,
-          userType: userType,
-          programYear: programYear,
-          professor: userType == 'Student' ? professorName : null,
-          date: formattedDate,
-          time: formattedTime,
-          status: 'Ongoing',
-          items: items,
-          lastUpdated: formattedLastUpdated,
-        ));
+        reservations.add(
+          OngoingReservation(
+            reservationId: reservationId.toString(),
+            name: name,
+            userType: userType,
+            programYear: programYear,
+            professor: userType == 'Student' ? professorName : null,
+            date: formattedDate,
+            time: formattedTime,
+            status: upcoming ? 'Upcoming' : reservation['status'].toString(),
+            items: items,
+            lastUpdated: formattedLastUpdated,
+          ),
+        );
       }
 
       print('Mapped ${reservations.length} ongoing reservations');
@@ -239,18 +286,30 @@ class OngoingReservationService {
   }
 
   /// Count total ongoing reservations (for pagination)
-  Future<int> countOngoingReservations() async {
+  Future<int> countOngoingReservations({bool upcoming = false}) async {
     try {
       final response = await _client
           .from('reservations')
-          .select('reservation_id')
-          .eq('status', 'Ongoing')
-          .count();
-      return response.count;
+          .select('reservation_date, start_time, end_time')
+          .inFilter('status', ['Pending', 'Approved', 'Ongoing'])
+          .eq('is_deleted', false);
+      final today = _dateOnly(DateTime.now());
+      return response.where((reservation) {
+        final reservationDate = DateTime.parse(
+          reservation['reservation_date'].toString(),
+        );
+        return upcoming
+            ? reservationDate.isAfter(today)
+            : _dateOnly(reservationDate) == today;
+      }).length;
     } catch (e) {
       print('Error counting ongoing reservations: $e');
       return 0;
     }
+  }
+
+  DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
   }
 
   /// Complete reservation
@@ -272,7 +331,13 @@ class OngoingReservationService {
   }
 
   /// Return item - marks item as fully returned and updates stock
-  Future<void> returnItem(int detailId, int assetId, int borrowedQuantity, int unreturnedQuantity, String reservationId) async {
+  Future<void> returnItem(
+    int detailId,
+    int assetId,
+    int borrowedQuantity,
+    int unreturnedQuantity,
+    String reservationId,
+  ) async {
     try {
       // Get current asset stock
       final assetResponse = await _client
@@ -280,40 +345,35 @@ class OngoingReservationService {
           .select('available_stock, total_stock')
           .eq('asset_id', assetId)
           .single();
-      
+
       final previousStock = assetResponse['available_stock'] as int? ?? 0;
       final totalStock = assetResponse['total_stock'] as int? ?? 0;
       final newStock = previousStock + unreturnedQuantity;
-      
+
       // Ensure new stock doesn't exceed total stock
       final finalStock = newStock > totalStock ? totalStock : newStock;
-      
+
       // Update reservation item
       await _client
           .from('reservation_items')
-          .update({
-            'quantity_returned': borrowedQuantity,
-            'is_returned': true,
-          })
+          .update({'quantity_returned': borrowedQuantity, 'is_returned': true})
           .eq('detail_id', detailId);
-      
+
       // Update lab asset stock
       await _client
           .from('lab_assets')
           .update({'available_stock': finalStock})
           .eq('asset_id', assetId);
-      
+
       // Log to stock history
-      await _client
-          .from('stock_history')
-          .insert({
-            'item_type': 'asset',
-            'item_id': assetId,
-            'previous_quantity': previousStock,
-            'new_quantity': finalStock,
-            'change_reason': 'Item returned early (Reservation ID: $reservationId)',
-            'changed_by': _client.auth.currentUser?.id,
-          });
+      await _client.from('stock_history').insert({
+        'item_type': 'asset',
+        'item_id': assetId,
+        'previous_quantity': previousStock,
+        'new_quantity': finalStock,
+        'change_reason': 'Item returned early (Reservation ID: $reservationId)',
+        'changed_by': _client.auth.currentUser?.id,
+      });
 
       // Clear dashboard cache
       await _cache.remove('dashboard_stats');
@@ -325,7 +385,13 @@ class OngoingReservationService {
   }
 
   /// Return partial item - updates stock and returned quantity
-  Future<void> returnPartialItem(int detailId, int assetId, int currentReturnedQuantity, int returnQuantity, String reservationId) async {
+  Future<void> returnPartialItem(
+    int detailId,
+    int assetId,
+    int currentReturnedQuantity,
+    int returnQuantity,
+    String reservationId,
+  ) async {
     try {
       // Get current asset stock
       final assetResponse = await _client
@@ -333,14 +399,14 @@ class OngoingReservationService {
           .select('available_stock, total_stock')
           .eq('asset_id', assetId)
           .single();
-      
+
       final previousStock = assetResponse['available_stock'] as int? ?? 0;
       final totalStock = assetResponse['total_stock'] as int? ?? 0;
       final newStock = previousStock + returnQuantity;
-      
+
       // Ensure new stock doesn't exceed total stock
       final finalStock = newStock > totalStock ? totalStock : newStock;
-      
+
       await _client
           .from('reservation_items')
           .update({
@@ -348,24 +414,23 @@ class OngoingReservationService {
             'is_returned': false,
           })
           .eq('detail_id', detailId);
-      
+
       // Update lab asset stock
       await _client
           .from('lab_assets')
           .update({'available_stock': finalStock})
           .eq('asset_id', assetId);
-      
+
       // Log to stock history
-      await _client
-          .from('stock_history')
-          .insert({
-            'item_type': 'asset',
-            'item_id': assetId,
-            'previous_quantity': previousStock,
-            'new_quantity': finalStock,
-            'change_reason': 'Partial return: $returnQuantity items (Reservation ID: $reservationId)',
-            'changed_by': _client.auth.currentUser?.id,
-          });
+      await _client.from('stock_history').insert({
+        'item_type': 'asset',
+        'item_id': assetId,
+        'previous_quantity': previousStock,
+        'new_quantity': finalStock,
+        'change_reason':
+            'Partial return: $returnQuantity items (Reservation ID: $reservationId)',
+        'changed_by': _client.auth.currentUser?.id,
+      });
 
       // Clear dashboard cache
       await _cache.remove('dashboard_stats');
@@ -399,7 +464,7 @@ class OngoingReservationService {
             .from('reservations')
             .update({'status': 'Completed'})
             .eq('reservation_id', reservationId);
-        
+
         // Clear dashboard cache
         await _cache.remove('dashboard_stats');
         await _cache.remove('dashboard_reservation_trends');

@@ -8,6 +8,8 @@ class ReservationHistory {
   final String timeSchedule;
   final String status;
   final String dateCreated;
+  final String createdByName;
+  final String createdByType;
   final List<ReservedItem>? items;
 
   ReservationHistory({
@@ -20,6 +22,8 @@ class ReservationHistory {
     required this.timeSchedule,
     required this.status,
     required this.dateCreated,
+    required this.createdByName,
+    required this.createdByType,
     this.items,
   });
 
@@ -34,6 +38,8 @@ class ReservationHistory {
       timeSchedule: json['time_schedule'] ?? '',
       status: json['status'] ?? 'Pending',
       dateCreated: json['date_created'] ?? '',
+      createdByName: json['created_by_name'] ?? 'Not recorded',
+      createdByType: json['created_by_type'] ?? 'Not recorded',
       items: json['items'] != null
           ? (json['items'] as List)
               .map((item) => ReservedItem.fromJson(item))
@@ -53,6 +59,8 @@ class ReservationHistory {
       'time_schedule': timeSchedule,
       'status': status,
       'date_created': dateCreated,
+      'created_by_name': createdByName,
+      'created_by_type': createdByType,
       'items': items?.map((item) => item.toJson()).toList(),
     };
   }
@@ -67,6 +75,8 @@ class ReservationHistory {
     String? timeSchedule,
     String? status,
     String? dateCreated,
+    String? createdByName,
+    String? createdByType,
     List<ReservedItem>? items,
   }) {
     return ReservationHistory(
@@ -79,6 +89,8 @@ class ReservationHistory {
       timeSchedule: timeSchedule ?? this.timeSchedule,
       status: status ?? this.status,
       dateCreated: dateCreated ?? this.dateCreated,
+      createdByName: createdByName ?? this.createdByName,
+      createdByType: createdByType ?? this.createdByType,
       items: items ?? this.items,
     );
   }
