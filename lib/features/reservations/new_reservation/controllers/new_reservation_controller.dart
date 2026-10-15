@@ -1,23 +1,34 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/new_reservation_models.dart';
+import '../services/inventory_hold_service.dart';
 import '../services/new_reservation_service.dart';
 
 class NewReservationController extends ChangeNotifier {
   NewReservationController({NewReservationGateway? gateway})
-    : _gateway = gateway ?? NewReservationService();
+    : _gateway = gateway ?? NewReservationService(),
+      _holdService = gateway == null ? InventoryHoldService() : null,
+      _cartId =
+          '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(gateway ?? Object())}';
 
   static const int openingMinutes = 7 * 60;
   static const int closingMinutes = 20 * 60;
   static const int slotMinutes = 30;
+  static const int resourcesPerPage = 9;
 
   final NewReservationGateway _gateway;
+  final InventoryHoldService? _holdService;
+  final String _cartId;
   final Map<String, ReservationCartItem> _cart = {};
+  Future<void> _holdQueue = Future<void>.value();
 
   List<ReservationAccount> _accounts = [];
   List<ReservationResource> _resources = [];
   List<ReservationTimeRange> _roomSchedule = [];
   ReservationResourceType _selectedType = ReservationResourceType.room;
+  int _resourcePage = 1;
   DateTime _selectedDate = _nextWeekday(DateTime.now());
   int? _startMinutes;
   int? _endMinutes;
@@ -34,6 +45,7 @@ class NewReservationController extends ChangeNotifier {
   List<ReservationTimeRange> get roomSchedule =>
       List.unmodifiable(_roomSchedule);
   ReservationResourceType get selectedType => _selectedType;
+  int get resourcePage => _resourcePage;
   DateTime get selectedDate => _selectedDate;
   int? get startMinutes => _startMinutes;
   int? get endMinutes => _endMinutes;
@@ -56,6 +68,19 @@ class NewReservationController extends ChangeNotifier {
   List<ReservationResource> get visibleResources =>
       _resources.where((resource) => resource.type == _selectedType).toList();
 
+  int get resourcePageCount {
+    final count = visibleResources.length;
+    return count == 0 ? 0 : (count + resourcesPerPage - 1) ~/ resourcesPerPage;
+  }
+
+  List<ReservationResource> get paginatedResources {
+    final resources = visibleResources;
+    if (resources.isEmpty) return const [];
+    final start = (_resourcePage - 1) * resourcesPerPage;
+    final end = (start + resourcesPerPage).clamp(0, resources.length);
+    return resources.sublist(start, end);
+  }
+
   ReservationCartItem? get selectedRoom {
     for (final item in _cart.values) {
       if (item.resource.type == ReservationResourceType.room) return item;
@@ -69,6 +94,8 @@ class NewReservationController extends ChangeNotifier {
       _endMinutes! > _startMinutes!;
 
   bool get canSubmit => _cart.isNotEmpty && hasValidTime && !_isSubmitting;
+
+  bool get _holdsEnabled => _holdService != null;
 
   Future<void> loadReservationAccounts() async {
     _isLoadingAccounts = true;
@@ -97,6 +124,7 @@ class NewReservationController extends ChangeNotifier {
     notifyListeners();
     try {
       _resources = await _gateway.loadResources();
+      _clampResourcePage();
     } catch (error) {
       _errorMessage = _friendlyError(error);
     } finally {
@@ -107,6 +135,19 @@ class NewReservationController extends ChangeNotifier {
 
   void selectType(ReservationResourceType type) {
     _selectedType = type;
+    _resourcePage = 1;
+    notifyListeners();
+  }
+
+  void previousResourcePage() {
+    if (_resourcePage <= 1) return;
+    _resourcePage--;
+    notifyListeners();
+  }
+
+  void nextResourcePage() {
+    if (_resourcePage >= resourcePageCount) return;
+    _resourcePage++;
     notifyListeners();
   }
 
@@ -146,6 +187,34 @@ class NewReservationController extends ChangeNotifier {
     return true;
   }
 
+  Future<bool> addResourceAndHold(ReservationResource resource) {
+    if (!_holdsEnabled || resource.type == ReservationResourceType.room) {
+      return Future.value(addResource(resource));
+    }
+    return _queueHold(() async {
+      final currentResource = _resourceByKey(resource.key) ?? resource;
+      if (!currentResource.isAvailable) return false;
+      final current = _cart[currentResource.key];
+      final increment = currentResource.type == ReservationResourceType.chemical
+          ? 1.0
+          : 1;
+      final nextQuantity = (current?.quantity ?? 0) + increment;
+      if (nextQuantity > currentResource.availableQuantity) return false;
+      await _holdService!.setHold(
+        cartId: _cartId,
+        resource: currentResource,
+        quantity: nextQuantity,
+      );
+      _cart[currentResource.key] = ReservationCartItem(
+        resource: currentResource,
+        quantity: nextQuantity,
+      );
+      _adjustRemaining(currentResource.key, -increment);
+      notifyListeners();
+      return true;
+    });
+  }
+
   void removeResource(String key) {
     final removed = _cart.remove(key);
     if (removed?.resource.type == ReservationResourceType.room) {
@@ -169,6 +238,59 @@ class NewReservationController extends ChangeNotifier {
     _cart[key] = item.copyWith(quantity: next);
     notifyListeners();
     return true;
+  }
+
+  Future<bool> changeQuantityAndHold(String key, num delta) {
+    if (!_holdsEnabled) return Future.value(changeQuantity(key, delta));
+    return _queueHold(() async {
+      final item = _cart[key];
+      if (item == null || item.resource.type == ReservationResourceType.room) {
+        return false;
+      }
+      final next = item.quantity + delta;
+      if (next <= 0) {
+        await _holdService!.releaseResource(
+          cartId: _cartId,
+          resource: item.resource,
+        );
+        _cart.remove(key);
+        _adjustRemaining(key, item.quantity);
+        notifyListeners();
+        return true;
+      }
+      if (delta > 0) {
+        final available = _resourceByKey(key)?.availableQuantity ?? 0;
+        if (delta > available) return false;
+      }
+      await _holdService!.setHold(
+        cartId: _cartId,
+        resource: item.resource,
+        quantity: next,
+      );
+      _cart[key] = item.copyWith(quantity: next);
+      _adjustRemaining(key, -delta);
+      notifyListeners();
+      return true;
+    });
+  }
+
+  Future<void> removeResourceAndRelease(String key) {
+    if (!_holdsEnabled) {
+      removeResource(key);
+      return Future<void>.value();
+    }
+    return _queueHold(() async {
+      final item = _cart[key];
+      if (item == null) return;
+      if (item.resource.type != ReservationResourceType.room) {
+        await _holdService!.releaseResource(
+          cartId: _cartId,
+          resource: item.resource,
+        );
+        _adjustRemaining(key, item.quantity);
+      }
+      removeResource(key);
+    });
   }
 
   Future<void> selectDate(DateTime value) async {
@@ -291,6 +413,7 @@ class NewReservationController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
+      await _holdQueue;
       final id = await _gateway.createReservation(
         NewReservationRequest(
           account: account,
@@ -301,6 +424,7 @@ class NewReservationController extends ChangeNotifier {
           additionalNote: additionalNote.trim().isEmpty
               ? null
               : additionalNote.trim(),
+          inventoryHoldCartId: _holdsEnabled ? _cartId : null,
         ),
       );
       _cart.clear();
@@ -323,9 +447,63 @@ class NewReservationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    if (_holdsEnabled) {
+      unawaited(_holdQueue.then((_) => _holdService!.releaseAll(_cartId)));
+    }
+    super.dispose();
+  }
+
+  Future<T> _queueHold<T>(Future<T> Function() operation) {
+    final next = _holdQueue.then((_) => operation());
+    _holdQueue = next.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {
+        _errorMessage = _friendlyError(error);
+        notifyListeners();
+      },
+    );
+    return next;
+  }
+
+  ReservationResource? _resourceByKey(String key) {
+    for (final resource in _resources) {
+      if (resource.key == key) return resource;
+    }
+    return null;
+  }
+
+  void _adjustRemaining(String key, num delta) {
+    final resourceIndex = _resources.indexWhere((item) => item.key == key);
+    if (resourceIndex < 0) return;
+    final resource = _resources[resourceIndex];
+    final remaining = resource.availableQuantity + delta;
+    final updatedResource = resource.copyWith(
+      availableQuantity: remaining < 0 ? 0 : remaining,
+    );
+    _resources[resourceIndex] = updatedResource;
+    final cartItem = _cart[key];
+    if (cartItem != null) {
+      _cart[key] = ReservationCartItem(
+        resource: updatedResource,
+        quantity: cartItem.quantity,
+      );
+    }
+  }
+
   void _clearTime() {
     _startMinutes = null;
     _endMinutes = null;
+  }
+
+  void _clampResourcePage() {
+    final pages = resourcePageCount;
+    if (pages == 0) {
+      _resourcePage = 1;
+    } else if (_resourcePage > pages) {
+      _resourcePage = pages;
+    }
   }
 
   String _friendlyError(Object error) {

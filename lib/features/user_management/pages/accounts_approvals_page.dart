@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/user_controller.dart';
 import '../models/user_model.dart';
+import '../../../core/utils/table_loading_indicator.dart';
 
 class AccountsApprovalsPage extends StatefulWidget {
   const AccountsApprovalsPage({super.key});
@@ -15,7 +16,12 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
   @override
   void initState() {
     super.initState();
-    _controller.loadPendingApprovals();
+    _loadApprovals();
+  }
+
+  Future<void> _loadApprovals() async {
+    await _controller.loadPendingApprovals();
+    await _controller.startRealtime();
   }
 
   @override
@@ -46,13 +52,10 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
               const SizedBox(height: 16),
               Text(
                 'Review and approve pending account requests',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
-              
+
               // Pending Approvals Section
               _buildPendingApprovalsSection(theme),
             ],
@@ -91,7 +94,10 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -107,7 +113,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_controller.pendingApprovals.isEmpty)
+          if (_controller.isLoading)
+            const SizedBox(height: 220, child: TableLoadingIndicator())
+          else if (_controller.pendingApprovals.isEmpty)
             _buildEmptyState(theme)
           else
             _buildApprovalsTable(theme),
@@ -126,11 +134,7 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: Colors.green[300],
-          ),
+          Icon(Icons.check_circle_outline, size: 64, color: Colors.green[300]),
           const SizedBox(height: 16),
           Text(
             'No Pending Approvals',
@@ -143,10 +147,7 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
           const SizedBox(height: 8),
           Text(
             'All account requests have been processed',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -157,7 +158,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
     return Column(
       children: [
         _buildTableHeader(theme),
-        ..._controller.pendingApprovals.map((request) => _buildApprovalRow(request, theme)),
+        ..._controller.pendingApprovals.map(
+          (request) => _buildApprovalRow(request, theme),
+        ),
       ],
     );
   }
@@ -175,11 +178,61 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 3, child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Requested On', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 1, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Email',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Type',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Requested On',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -280,7 +333,11 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
                     value: 'details',
                     child: Row(
                       children: [
-                        Icon(Icons.visibility, color: theme.colorScheme.primary, size: 20),
+                        Icon(
+                          Icons.visibility,
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         const Text('View Details'),
                       ],
@@ -316,7 +373,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Approve Account Request'),
-        content: Text('Are you sure you want to approve the account request for ${request.fullName}?'),
+        content: Text(
+          'Are you sure you want to approve the account request for ${request.fullName}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -329,7 +388,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
               if (mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Account approved for ${request.fullName}')),
+                    SnackBar(
+                      content: Text('Account approved for ${request.fullName}'),
+                    ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -347,15 +408,23 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              final success = await _controller.approveAsProfessor(request.userId);
+              final success = await _controller.approveAsProfessor(
+                request.userId,
+              );
               if (mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Account approved as professor for ${request.fullName}')),
+                    SnackBar(
+                      content: Text(
+                        'Account approved as professor for ${request.fullName}',
+                      ),
+                    ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to approve account as professor')),
+                    const SnackBar(
+                      content: Text('Failed to approve account as professor'),
+                    ),
                   );
                 }
               }
@@ -373,7 +442,7 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
 
   void _showRejectDialog(User request) {
     final reasonController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -381,7 +450,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Are you sure you want to reject the account request for ${request.fullName}?'),
+            Text(
+              'Are you sure you want to reject the account request for ${request.fullName}?',
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: reasonController,
@@ -409,7 +480,9 @@ class _AccountsApprovalsPageState extends State<AccountsApprovalsPage> {
               if (mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Account rejected for ${request.fullName}')),
+                    SnackBar(
+                      content: Text('Account rejected for ${request.fullName}'),
+                    ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(

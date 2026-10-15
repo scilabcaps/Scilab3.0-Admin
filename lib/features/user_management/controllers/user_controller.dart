@@ -1,45 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show PostgresChangeEvent, RealtimeChannel;
 import '../models/user_model.dart';
 import '../../../core/api/supabase_client.dart';
 import '../../../core/api/supabase_config.dart';
-import '../../../core/service/cache_service.dart';
 import '../../audit/services/audit_service.dart';
 
 class UserController extends ChangeNotifier {
-  static const _studentsCacheKey = 'approved_students_list_v1';
   List<User> _students = [];
   List<User> _professors = [];
   List<User> _pendingApprovals = [];
   String? _errorMessage;
-  final CacheService _cache = CacheService();
+  bool _isLoading = false;
   final AuditService _auditService = AuditService();
+  RealtimeChannel? _realtimeChannel;
+  bool _realtimeReloadQueued = false;
 
   List<User> get students => _students;
   List<User> get professors => _professors;
   List<User> get pendingApprovals => _pendingApprovals;
   String? get errorMessage => _errorMessage;
+  bool get isLoading => _isLoading;
 
   Future<void> loadStudents() async {
-    final cacheKey = _studentsCacheKey;
-    
-    // Try to get from cache first
-    final cachedStudents = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedStudents != null) {
-      _students = cachedStudents.map((data) => User(
-        userId: data['userId'],
-        displayName: data['displayName'],
-        firstName: data['firstName'],
-        lastName: data['lastName'],
-        phone: data['phone'],
-        email: data['email'],
-        userType: data['userType'],
-        createdAt: DateTime.parse(data['createdAt']),
-        isBanned: data['isBanned'],
-      )).toList();
-      notifyListeners();
-      return;
-    }
-
+    _isLoading = true;
+    notifyListeners();
     try {
       final response = await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
@@ -64,48 +51,19 @@ class UserController extends ChangeNotifier {
       }).toList();
 
       print('Loaded ${_students.length} students');
+      _isLoading = false;
       notifyListeners();
-
-      // Cache the result with 60 minute TTL (user data changes infrequently)
-      await _cache.set(cacheKey, _students.map((user) => {
-        'userId': user.userId,
-        'displayName': user.displayName,
-        'firstName': user.firstName,
-        'lastName': user.lastName,
-        'phone': user.phone,
-        'email': user.email,
-        'userType': user.userType,
-        'createdAt': user.createdAt?.toIso8601String(),
-        'isBanned': user.isBanned,
-      }).toList(), ttlMinutes: 60);
     } catch (e) {
       print('Error loading students: $e');
       _students = [];
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> loadProfessors() async {
-    final cacheKey = 'professors_list';
-    
-    // Try to get from cache first
-    final cachedProfessors = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedProfessors != null) {
-      _professors = cachedProfessors.map((data) => User(
-        userId: data['userId'],
-        displayName: data['displayName'],
-        firstName: data['firstName'],
-        lastName: data['lastName'],
-        phone: data['phone'],
-        email: data['email'],
-        userType: data['userType'],
-        createdAt: data['createdAt'] != null ? DateTime.parse(data['createdAt']) : null,
-        isBanned: data['isBanned'],
-      )).toList();
-      notifyListeners();
-      return;
-    }
-
+    _isLoading = true;
+    notifyListeners();
     try {
       final response = await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
@@ -126,23 +84,12 @@ class UserController extends ChangeNotifier {
         );
       }).toList();
 
+      _isLoading = false;
       notifyListeners();
-
-      // Cache the result with 60 minute TTL (user data changes infrequently)
-      await _cache.set(cacheKey, _professors.map((user) => {
-        'userId': user.userId,
-        'displayName': user.displayName,
-        'firstName': user.firstName,
-        'lastName': user.lastName,
-        'phone': user.phone,
-        'email': user.email,
-        'userType': user.userType,
-        'createdAt': user.createdAt?.toIso8601String(),
-        'isBanned': user.isBanned,
-      }).toList(), ttlMinutes: 60);
     } catch (e) {
       print('Error loading professors: $e');
       _professors = [];
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -181,13 +128,13 @@ class UserController extends ChangeNotifier {
         'role': userType,
         'isApproved': 1,
       };
-      
+
       // Admin-created accounts are approved immediately.
       if (userType == 'professor') {
         userData['year_section'] = 'Professor';
         userData['course'] = 'Professor';
       }
-      
+
       await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
           .insert(userData);
@@ -211,13 +158,6 @@ class UserController extends ChangeNotifier {
       }
 
       notifyListeners();
-
-      // Clear cache after user creation to ensure consistency
-      if (userType == 'student') {
-        await _cache.remove(_studentsCacheKey);
-      } else {
-        await _cache.remove('professors_list');
-      }
 
       // Log audit action
       await _auditService.logAction(
@@ -264,13 +204,6 @@ class UserController extends ChangeNotifier {
 
       notifyListeners();
 
-      // Clear cache after user ban to ensure consistency
-      if (userType == 'student') {
-        await _cache.remove(_studentsCacheKey);
-      } else {
-        await _cache.remove('professors_list');
-      }
-
       // Log audit action
       await _auditService.logAction(
         actionType: 'BAN',
@@ -306,13 +239,6 @@ class UserController extends ChangeNotifier {
 
       notifyListeners();
 
-      // Clear cache after user unban to ensure consistency
-      if (userType == 'student') {
-        await _cache.remove(_studentsCacheKey);
-      } else {
-        await _cache.remove('professors_list');
-      }
-
       // Log audit action
       await _auditService.logAction(
         actionType: 'UNBAN',
@@ -333,27 +259,36 @@ class UserController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadPendingApprovals() async {
-    final cacheKey = 'pending_approvals_list';
-    
-    // Try to get from cache first
-    final cachedApprovals = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedApprovals != null) {
-      _pendingApprovals = cachedApprovals.map((data) => User(
-        userId: data['userId'],
-        displayName: data['displayName'],
-        firstName: data['firstName'],
-        lastName: data['lastName'],
-        phone: data['phone'],
-        email: data['email'],
-        userType: data['userType'],
-        createdAt: data['createdAt'] != null ? DateTime.parse(data['createdAt']) : null,
-        isBanned: data['isBanned'],
-      )).toList();
-      notifyListeners();
+  Future<void> startRealtime() async {
+    if (_realtimeChannel != null || SupabaseService.auth.currentUser == null) {
       return;
     }
+    _realtimeChannel =
+        SupabaseService.database
+            .channel('admin-user-approvals')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: SupabaseConfig.tableUserInfo,
+              callback: (_) => _queueRealtimeReload(),
+            )
+          ..subscribe();
+  }
 
+  void _queueRealtimeReload() {
+    if (_realtimeReloadQueued) return;
+    _realtimeReloadQueued = true;
+    unawaited(
+      Future<void>(() async {
+        _realtimeReloadQueued = false;
+        await loadPendingApprovals();
+      }),
+    );
+  }
+
+  Future<void> loadPendingApprovals() async {
+    _isLoading = true;
+    notifyListeners();
     try {
       // Load users with isApproved = 0 or where approval status is pending
       final response = await SupabaseService.database
@@ -375,23 +310,12 @@ class UserController extends ChangeNotifier {
         );
       }).toList();
 
+      _isLoading = false;
       notifyListeners();
-
-      // Cache the result with 30 minute TTL (approvals change more frequently)
-      await _cache.set(cacheKey, _pendingApprovals.map((user) => {
-        'userId': user.userId,
-        'displayName': user.displayName,
-        'firstName': user.firstName,
-        'lastName': user.lastName,
-        'phone': user.phone,
-        'email': user.email,
-        'userType': user.userType,
-        'createdAt': user.createdAt?.toIso8601String(),
-        'isBanned': user.isBanned,
-      }).toList(), ttlMinutes: 30);
     } catch (e) {
       print('Error loading pending approvals: $e');
       _pendingApprovals = [];
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -407,10 +331,6 @@ class UserController extends ChangeNotifier {
       // Remove from pending approvals
       _pendingApprovals.removeWhere((user) => user.userId == userId);
       notifyListeners();
-
-      // Clear cache after approval to ensure consistency
-      await _cache.remove('pending_approvals_list');
-      await _cache.remove(_studentsCacheKey);
 
       // Log audit action
       await _auditService.logAction(
@@ -433,19 +353,12 @@ class UserController extends ChangeNotifier {
       // Update user_info table to mark as approved and set role to professor
       await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
-          .update({
-            'isApproved': 1,
-            'role': 'professor',
-          })
+          .update({'isApproved': 1, 'role': 'professor'})
           .eq('id', userId);
 
       // Remove from pending approvals
       _pendingApprovals.removeWhere((user) => user.userId == userId);
       notifyListeners();
-
-      // Clear cache after approval to ensure consistency
-      await _cache.remove('pending_approvals_list');
-      await _cache.remove(_studentsCacheKey);
 
       // Log audit action
       await _auditService.logAction(
@@ -468,18 +381,12 @@ class UserController extends ChangeNotifier {
       // Update user_info table to mark as rejected
       await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
-          .update({
-            'isApproved': 2,
-            'rejection_reason': reason,
-          })
+          .update({'isApproved': 2, 'rejection_reason': reason})
           .eq('id', userId);
 
       // Remove from pending approvals
       _pendingApprovals.removeWhere((user) => user.userId == userId);
       notifyListeners();
-
-      // Clear cache after rejection to ensure consistency
-      await _cache.remove('pending_approvals_list');
 
       // Log audit action
       await _auditService.logAction(
@@ -515,34 +422,31 @@ class UserController extends ChangeNotifier {
       await SupabaseService.database
           .from(SupabaseConfig.tableUserInfo)
           .update({
-        'email': updatedUser.email,
-        'first_name': updatedUser.firstName,
-        'last_name': updatedUser.lastName,
-        'phone': updatedUser.phone,
-      })
+            'email': updatedUser.email,
+            'first_name': updatedUser.firstName,
+            'last_name': updatedUser.lastName,
+            'phone': updatedUser.phone,
+          })
           .eq('id', updatedUser.userId);
 
       // Update local list
       if (updatedUser.userType == 'student') {
-        final index = _students.indexWhere((u) => u.userId == updatedUser.userId);
+        final index = _students.indexWhere(
+          (u) => u.userId == updatedUser.userId,
+        );
         if (index != -1) {
           _students[index] = updatedUser;
         }
       } else {
-        final index = _professors.indexWhere((u) => u.userId == updatedUser.userId);
+        final index = _professors.indexWhere(
+          (u) => u.userId == updatedUser.userId,
+        );
         if (index != -1) {
           _professors[index] = updatedUser;
         }
       }
 
       notifyListeners();
-
-      // Clear cache after user update to ensure consistency
-      if (updatedUser.userType == 'student') {
-        await _cache.remove(_studentsCacheKey);
-      } else {
-        await _cache.remove('professors_list');
-      }
 
       // Log audit action
       await _auditService.logAction(
@@ -559,7 +463,8 @@ class UserController extends ChangeNotifier {
           'first_name': updatedUser.firstName,
           'last_name': updatedUser.lastName,
         },
-        description: 'Updated user: ${updatedUser.firstName} ${updatedUser.lastName}',
+        description:
+            'Updated user: ${updatedUser.firstName} ${updatedUser.lastName}',
       );
 
       return true;
@@ -570,7 +475,6 @@ class UserController extends ChangeNotifier {
       return false;
     }
   }
-
 
   String? validateFirstName(String? value) {
     if (value == null || value.isEmpty) {
@@ -592,7 +496,9 @@ class UserController extends ChangeNotifier {
     }
     // Stricter regex to match Supabase email validation requirements
     // Requires at least 3 characters before @ and valid domain
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     if (!emailRegex.hasMatch(value)) {
       return 'Please enter a valid email (min 3 characters before @)';
     }
@@ -614,5 +520,14 @@ class UserController extends ChangeNotifier {
       return 'Passwords do not match';
     }
     return null;
+  }
+
+  @override
+  void dispose() {
+    final channel = _realtimeChannel;
+    if (channel != null) {
+      unawaited(SupabaseService.database.removeChannel(channel));
+    }
+    super.dispose();
   }
 }

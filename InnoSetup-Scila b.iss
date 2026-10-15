@@ -1,6 +1,6 @@
 [Setup]
 AppName=Scilab
-AppVersion=1.0.1
+AppVersion=1.0.4
 DefaultDirName={autopf}\Scilab
 DefaultGroupName=Scilab
 OutputDir=C:\Users\trick\OneDrive\Documents\Projects\Scilab\Scilab3.0-Admin\build\installer

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/student_reservation_controller.dart';
 import '../models/student_reservation_model.dart';
-import '../widgets/approval_modal.dart';
+import '../../shared/reservation_details_dialog.dart';
 
 class StudentReservationPage extends StatefulWidget {
   const StudentReservationPage({
@@ -30,6 +31,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
 
   Future<void> _loadReservationsAndOpenInitial() async {
     await _controller.loadReservations();
+    await _controller.startRealtime();
     if (!mounted || widget.initialReservationId == null) return;
     final reservation = _controller.reservations
         .where((item) => item.reservationId == widget.initialReservationId)
@@ -37,7 +39,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
     if (reservation != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _showApprovalModal(reservation);
+          _showReservationDetails(reservation);
           widget.onInitialReservationHandled?.call();
         }
       });
@@ -51,13 +53,41 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
     super.dispose();
   }
 
-  void _showApprovalModal(StudentReservation reservation) {
+  void _showReservationDetails(StudentReservation reservation) {
     showDialog(
       context: context,
-      builder: (context) => ApprovalModal(
-        reservation: reservation,
-        controller: _controller,
-        onClose: () => Navigator.pop(context),
+      builder: (context) => ReservationDetailsDialog(
+        reservationId: reservation.reservationId,
+        date: reservation.date,
+        time: reservation.time,
+        status: reservation.status,
+        resources: reservationDetailItemsFromText(reservation.resources),
+        footerActions: reservation.status.toLowerCase() == 'pending'
+            ? [
+                ElevatedButton(
+                  onPressed: () {
+                    _controller.approveReservation(reservation.reservationId);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Approve'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _controller.rejectReservation(reservation.reservationId);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF44336),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Reject'),
+                ),
+              ]
+            : const [],
       ),
     );
   }
@@ -271,11 +301,8 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
   }
 
   Widget _buildReservationsContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     final filteredReservations = _filteredReservations;
-
-    if (filteredReservations.isEmpty) {
-      return _buildEmptyState();
-    }
 
     return Container(
       width: double.infinity,
@@ -293,16 +320,20 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
       child: Column(
         children: [
           _buildTableHeader(),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                children: filteredReservations
-                    .map((reservation) => _buildReservationRow(reservation))
-                    .toList(),
+          if (filteredReservations.isEmpty)
+            _buildEmptyState()
+          else ...[
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: filteredReservations
+                      .map((reservation) => _buildReservationRow(reservation))
+                      .toList(),
+                ),
               ),
             ),
-          ),
-          _buildPagination(),
+            _buildPagination(),
+          ],
         ],
       ),
     );
@@ -479,7 +510,7 @@ class _StudentReservationPageState extends State<StudentReservationPage> {
             child: SizedBox(
               height: 32,
               child: ElevatedButton(
-                onPressed: () => _showApprovalModal(reservation),
+                onPressed: () => _showReservationDetails(reservation),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,

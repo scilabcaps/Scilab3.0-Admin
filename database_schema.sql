@@ -51,6 +51,7 @@ CREATE TABLE public.reservations (
   status text NOT NULL DEFAULT 'Pending'::text CHECK (status = ANY (ARRAY['Pending'::text, 'Approved'::text, 'Ongoing'::text, 'Partially Returned'::text, 'Completed'::text, 'Cancelled'::text, 'Declined'::text, 'Unreturned'::text])),
   additional_note character varying,
   is_deleted boolean DEFAULT false,
+  inventory_deducted boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT reservations_pkey PRIMARY KEY (reservation_id),

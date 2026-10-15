@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../core/utils/table_loading_indicator.dart';
 import '../controllers/audit_controller.dart';
 import '../models/audit_log_model.dart';
 import '../services/audit_export_service.dart';
@@ -39,7 +40,9 @@ class _AuditPageState extends State<AuditPage> {
     setState(() => _isExporting = true);
     try {
       var logs = await AuditService().getRecentLogs(
-        actionType: action, days: days, through: generatedAt,
+        actionType: action,
+        days: days,
+        through: generatedAt,
       );
       final entityTypes = switch (entity) {
         'user_management' => const {'user'},
@@ -55,9 +58,11 @@ class _AuditPageState extends State<AuditPage> {
       }
       if (!mounted) return;
       if (logs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No audit logs match the selected filters.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No audit logs match the selected filters.'),
+          ),
+        );
         return;
       }
       final exporter = AuditExportService();
@@ -69,10 +74,20 @@ class _AuditPageState extends State<AuditPage> {
         _ => 'all',
       };
       final bytes = format == 'xlsx'
-          ? exporter.generateExcel(logs: logs, action: action, entity: entityLabel,
-              days: days, generatedAt: generatedAt)
-          : await exporter.generatePdf(logs: logs, action: action, entity: entityLabel,
-              days: days, generatedAt: generatedAt);
+          ? exporter.generateExcel(
+              logs: logs,
+              action: action,
+              entity: entityLabel,
+              days: days,
+              generatedAt: generatedAt,
+            )
+          : await exporter.generatePdf(
+              logs: logs,
+              action: action,
+              entity: entityLabel,
+              days: days,
+              generatedAt: generatedAt,
+            );
       if (!mounted) return;
       final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
       final path = await FilePicker.platform.saveFile(
@@ -84,9 +99,11 @@ class _AuditPageState extends State<AuditPage> {
       );
       if (kIsWeb) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download started: ${logs.length} audit records.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download started: ${logs.length} audit records.'),
+          ),
+        );
         return;
       }
       if (path == null) return; // Save dialog cancelled.
@@ -97,15 +114,17 @@ class _AuditPageState extends State<AuditPage> {
         await writeAuditFile(path, bytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Saved ${logs.length} audit records to $path'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved ${logs.length} audit records to $path')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not generate report: $error'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -126,47 +145,81 @@ class _AuditPageState extends State<AuditPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text('Audit Logs', style: TextStyle(fontSize: 28,
-                      fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                  Text(
+                    'Audit Logs',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
                   PopupMenuButton<String>(
                     enabled: !_isExporting && !_controller.isLoading,
                     tooltip: 'Export all records matching the selected filters',
                     onSelected: _exportReport,
                     itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'xlsx', child: Text('Excel (.xlsx)')),
+                      PopupMenuItem(
+                        value: 'xlsx',
+                        child: Text('Excel (.xlsx)'),
+                      ),
                       PopupMenuItem(value: 'pdf', child: Text('PDF (.pdf)')),
                     ],
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: _isExporting || _controller.isLoading
                             ? theme.colorScheme.surfaceContainerHighest
                             : const Color(0xFF31CB00),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (_isExporting)
-                          const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2)),
-                        if (_isExporting) const SizedBox(width: 8),
-                        Text(_isExporting ? 'Generating report...' : 'Generate Report',
-                          style: TextStyle(color: _isExporting || _controller.isLoading
-                              ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onPrimary)),
-                      ]),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isExporting)
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          if (_isExporting) const SizedBox(width: 8),
+                          Text(
+                            _isExporting
+                                ? 'Generating report...'
+                                : 'Generate Report',
+                            style: TextStyle(
+                              color: _isExporting || _controller.isLoading
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : theme.colorScheme.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 32),
-              AbsorbPointer(absorbing: _isExporting, child: _buildFiltersSection(theme)),
+              AbsorbPointer(
+                absorbing: _isExporting,
+                child: _buildFiltersSection(theme),
+              ),
               const SizedBox(height: 8),
-              const Text('Reports include all records matching these filters, with full local dates and times.'),
+              const Text(
+                'Reports include all records matching these filters, with full local dates and times.',
+              ),
               const SizedBox(height: 24),
               if (_controller.isLoading) const LinearProgressIndicator(),
               if (_controller.errorMessage != null)
-                Padding(padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_controller.errorMessage!,
-                        style: TextStyle(color: theme.colorScheme.error))),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _controller.errorMessage!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
               _buildAuditTable(theme),
             ],
           ),
@@ -318,6 +371,7 @@ class _AuditPageState extends State<AuditPage> {
   }
 
   Widget _buildAuditTable(ThemeData theme) {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -355,11 +409,61 @@ class _AuditPageState extends State<AuditPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 2, child: Text('Timestamp', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Action', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Entity', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 3, child: Text('User', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 4, child: Text('Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Timestamp',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Action',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Entity',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'User',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              'Description',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -370,11 +474,7 @@ class _AuditPageState extends State<AuditPage> {
       padding: const EdgeInsets.all(64),
       child: Column(
         children: [
-          Icon(
-            Icons.history,
-            size: 64,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.history, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
             'No audit logs found',
@@ -387,10 +487,7 @@ class _AuditPageState extends State<AuditPage> {
           const SizedBox(height: 8),
           Text(
             'Adjust your filters or perform some actions to see logs here',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
           ),
         ],
       ),
@@ -402,10 +499,7 @@ class _AuditPageState extends State<AuditPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade100,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.grey.shade100, width: 1),
         ),
       ),
       child: Row(
@@ -417,7 +511,10 @@ class _AuditPageState extends State<AuditPage> {
               style: const TextStyle(fontSize: 14, color: Colors.black87),
             ),
           ),
-          Expanded(flex: 2, child: _buildModernActionChip(log.actionType, theme)),
+          Expanded(
+            flex: 2,
+            child: _buildModernActionChip(log.actionType, theme),
+          ),
           Expanded(
             flex: 2,
             child: Text(
@@ -452,9 +549,7 @@ class _AuditPageState extends State<AuditPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

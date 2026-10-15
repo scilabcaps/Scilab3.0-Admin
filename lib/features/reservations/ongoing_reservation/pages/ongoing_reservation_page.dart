@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/ongoing_reservation_controller.dart';
 import '../models/ongoing_reservation_model.dart';
 import '../widgets/return_modal.dart';
+import '../../shared/reservation_details_dialog.dart';
 
 class OngoingReservationPage extends StatefulWidget {
   const OngoingReservationPage({super.key, this.upcoming = false});
@@ -42,15 +44,54 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
   void _showUpcomingDetails(OngoingReservation reservation) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Upcoming Reservation'),
-        content: Text(
-          '${reservation.name}\n${reservation.date}\n${reservation.time}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      builder: (context) => ReservationDetailsDialog(
+        reservationId: reservation.reservationId,
+        date: reservation.date,
+        time: reservation.time,
+        status: reservation.status,
+        resources: (reservation.items ?? const <ReservedItem>[])
+            .map(
+              (item) => ReservationDetailItem(
+                name: item.itemName,
+                category: 'Resource',
+                detail: 'Quantity: ${item.quantity}',
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  void _showOngoingDetails(OngoingReservation reservation) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => ReservationDetailsDialog(
+        reservationId: reservation.reservationId,
+        date: reservation.date,
+        time: reservation.time,
+        status: reservation.status,
+        createdAt: reservation.lastUpdated,
+        resources: (reservation.items ?? const <ReservedItem>[])
+            .map(
+              (item) => ReservationDetailItem(
+                name: item.itemName,
+                category: 'Resource',
+                detail:
+                    'Quantity: ${item.quantity} · Returned: ${item.returnedQuantity}',
+              ),
+            )
+            .toList(),
+        footerActions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showReturnModal(reservation);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF31CB00),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Return Items'),
           ),
         ],
       ),
@@ -324,11 +365,8 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
   }
 
   Widget _buildReservationsContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     final filteredReservations = _filteredReservations;
-
-    if (filteredReservations.isEmpty) {
-      return _buildEmptyState();
-    }
 
     return Container(
       width: double.infinity,
@@ -345,18 +383,290 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
       ),
       child: Column(
         children: [
-          _buildTableHeader(),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                children: filteredReservations
-                    .map((reservation) => _buildReservationRow(reservation))
-                    .toList(),
+          widget.upcoming ? _buildUpcomingTableHeader() : _buildTableHeader(),
+          if (filteredReservations.isEmpty)
+            _buildEmptyState()
+          else ...[
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: filteredReservations
+                      .map(
+                        (reservation) => widget.upcoming
+                            ? _buildUpcomingReservationRow(reservation)
+                            : _buildReservationRow(reservation),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+            _buildPagination(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingTableHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF132A16),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+      ),
+      child: const Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Reservation #',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
               ),
             ),
           ),
-          _buildPagination(),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Reservator',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Role',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Reservation Source',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Date',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Time',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 5,
+            child: Text(
+              'Resources',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingReservationRow(OngoingReservation reservation) {
+    final resources = reservation.items ?? const <ReservedItem>[];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              reservation.reservationId,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              reservation.name,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: _buildUpcomingRoleBadge(reservation.userType),
+          ),
+          Expanded(
+            flex: 3,
+            child: _buildUpcomingSourceBadge(reservation.reservationSource),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(reservation.date, style: const TextStyle(fontSize: 14)),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(reservation.time, style: const TextStyle(fontSize: 14)),
+          ),
+          Expanded(
+            flex: 5,
+            child: resources.isEmpty
+                ? Text(
+                    'No resources',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: resources
+                        .map(
+                          (item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              item.itemName,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 32,
+              child: ElevatedButton(
+                onPressed: () => _showUpcomingDetails(reservation),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF31CB00),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'View Details',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingRoleBadge(String role) {
+    final isProfessor = role.toLowerCase() == 'professor';
+    final color = isProfessor ? Colors.blue.shade50 : Colors.orange.shade50;
+    final textColor = isProfessor
+        ? Colors.blue.shade700
+        : Colors.orange.shade800;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          role,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpcomingSourceBadge(String source) {
+    final isAdmin = source == 'Reserved by Admin';
+    final isRecorded = source != 'Not recorded';
+    final color = isAdmin
+        ? const Color(0xFFE8F5E9)
+        : isRecorded
+        ? Colors.blue.shade50
+        : Colors.grey.shade200;
+    final textColor = isAdmin
+        ? const Color(0xFF2E7D32)
+        : isRecorded
+        ? Colors.blue.shade700
+        : Colors.grey.shade700;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          source,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -376,7 +686,29 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
           Expanded(
             flex: 3,
             child: Text(
-              'Name',
+              'Reservator',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Role',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Reservation Source',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -474,6 +806,14 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
           ),
           Expanded(
             flex: 2,
+            child: _buildUpcomingRoleBadge(reservation.userType),
+          ),
+          Expanded(
+            flex: 3,
+            child: _buildUpcomingSourceBadge(reservation.reservationSource),
+          ),
+          Expanded(
+            flex: 2,
             child: Text(
               reservation.programYear,
               style: const TextStyle(fontSize: 14),
@@ -514,7 +854,7 @@ class _OngoingReservationPageState extends State<OngoingReservationPage> {
               child: ElevatedButton(
                 onPressed: () => widget.upcoming
                     ? _showUpcomingDetails(reservation)
-                    : _showReturnModal(reservation),
+                    : _showOngoingDetails(reservation),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,

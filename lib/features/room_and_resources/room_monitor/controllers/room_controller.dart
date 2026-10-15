@@ -2,27 +2,19 @@ import 'package:flutter/material.dart';
 import '../models/room_model.dart';
 import '../../../../core/api/supabase_client.dart';
 import '../../../../core/api/supabase_config.dart';
-import '../../../../core/service/cache_service.dart';
 import '../../../audit/services/audit_service.dart';
 
 class RoomController extends ChangeNotifier {
   List<Room> _rooms = [];
-  final CacheService _cache = CacheService();
+  bool _isLoading = false;
   final AuditService _auditService = AuditService();
 
   List<Room> get rooms => _rooms;
+  bool get isLoading => _isLoading;
 
   Future<void> loadRooms() async {
-    final cacheKey = 'rooms_list';
-    
-    // Try to get from cache first
-    final cachedRooms = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedRooms != null) {
-      _rooms = cachedRooms.map((data) => Room.fromJson(data)).toList();
-      notifyListeners();
-      return;
-    }
-
+    _isLoading = true;
+    notifyListeners();
     try {
       final response = await SupabaseService.database
           .from(SupabaseConfig.tableRooms)
@@ -38,11 +30,12 @@ class RoomController extends ChangeNotifier {
       _rooms = rooms;
       notifyListeners();
 
-      // Cache the result with 10 minute TTL (room status changes infrequently)
-      await _cache.set(cacheKey, rooms.map((room) => room.toJson()).toList(), ttlMinutes: 10);
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       debugPrint('Error loading rooms: $e');
       _rooms = _getMockRooms();
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -98,9 +91,6 @@ class RoomController extends ChangeNotifier {
       }).toList();
       notifyListeners();
 
-      // Clear cache after room status update to ensure consistency
-      await _cache.remove('rooms_list');
-
       // Log audit action
       await _auditService.logAction(
         actionType: 'UPDATE',
@@ -108,7 +98,8 @@ class RoomController extends ChangeNotifier {
         entityId: roomId,
         oldValues: {'status': oldStatus},
         newValues: {'status': newStatus},
-        description: 'Changed room ${oldRoom.roomName} status: $oldStatus → $newStatus',
+        description:
+            'Changed room ${oldRoom.roomName} status: $oldStatus → $newStatus',
       );
     } catch (e) {
       debugPrint('Error updating room status: $e');
@@ -148,9 +139,6 @@ class RoomController extends ChangeNotifier {
         },
         description: 'Created new room: $roomName',
       );
-
-      // Clear cache after adding a room to ensure consistency
-      await _cache.remove('rooms_list');
     } catch (e) {
       debugPrint('Error adding room: $e');
       rethrow;
@@ -210,9 +198,6 @@ class RoomController extends ChangeNotifier {
         newValues: newValues,
         description: 'Edited room: ${oldRoom.roomName}',
       );
-
-      // Clear cache after editing a room to ensure consistency
-      await _cache.remove('rooms_list');
     } catch (e) {
       debugPrint('Error editing room: $e');
       rethrow;
@@ -245,9 +230,6 @@ class RoomController extends ChangeNotifier {
         },
         description: 'Deleted room: ${roomToDelete.roomName}',
       );
-
-      // Clear cache after deleting a room to ensure consistency
-      await _cache.remove('rooms_list');
     } catch (e) {
       debugPrint('Error deleting room: $e');
       rethrow;

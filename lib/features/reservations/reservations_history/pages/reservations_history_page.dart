@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/reservations_history_controller.dart';
 import '../models/reservations_history_model.dart';
 import '../services/reservation_history_export_service.dart';
 import '../services/reservation_history_file_writer.dart';
-import '../widgets/receipt_modal.dart';
+import '../../shared/reservation_details_dialog.dart';
 
 class ReservationsHistoryPage extends StatefulWidget {
   const ReservationsHistoryPage({super.key, this.initialReservationId});
@@ -43,10 +44,29 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
   void _showReceiptModal(ReservationHistory reservation) {
     showDialog(
       context: context,
-      builder: (context) => ReceiptModal(
-        reservation: reservation,
-        onClose: () => Navigator.pop(context),
-        onExportPdf: () => _exportReceiptPdf(reservation),
+      builder: (context) => ReservationDetailsDialog(
+        reservationId: reservation.reservationId,
+        date: reservation.reservationDate,
+        time: reservation.timeSchedule,
+        status: reservation.status,
+        createdAt: reservation.dateCreated,
+        resources: (reservation.items ?? const <ReservedItem>[])
+            .map(
+              (item) => ReservationDetailItem(
+                name: item.itemName,
+                category: 'Resource',
+                detail:
+                    'Quantity: ${item.quantity} · Returned: ${item.returnedQuantity}',
+              ),
+            )
+            .toList(),
+        footerActions: [
+          OutlinedButton.icon(
+            onPressed: () => _exportReceiptPdf(reservation),
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('Export PDF'),
+          ),
+        ],
       ),
     );
   }
@@ -654,11 +674,8 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
   }
 
   Widget _buildReservationsContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     final filteredReservations = _controller.filteredReservations;
-
-    if (filteredReservations.isEmpty) {
-      return _buildEmptyState();
-    }
 
     return Container(
       width: double.infinity,
@@ -676,16 +693,20 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
       child: Column(
         children: [
           _buildTableHeader(),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                children: filteredReservations
-                    .map((reservation) => _buildReservationRow(reservation))
-                    .toList(),
+          if (filteredReservations.isEmpty)
+            _buildEmptyState()
+          else ...[
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: filteredReservations
+                      .map((reservation) => _buildReservationRow(reservation))
+                      .toList(),
+                ),
               ),
             ),
-          ),
-          _buildPagination(),
+            _buildPagination(),
+          ],
         ],
       ),
     );
@@ -706,7 +727,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           Expanded(
             flex: 3,
             child: Text(
-              'Full Name',
+              'Reservator',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -728,18 +749,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           Expanded(
             flex: 3,
             child: Text(
-              'Created By',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'Type',
+              'Reservation Source',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -825,13 +835,6 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
           Expanded(flex: 2, child: _buildRoleBadge(reservation.role)),
           Expanded(flex: 3, child: _buildCreatorBadge(reservation)),
           Expanded(
-            flex: 2,
-            child: Text(
-              reservation.reservationType,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-          Expanded(
             flex: 3,
             child: Text(
               reservation.roomItemReserved,
@@ -875,7 +878,7 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text(
-                  'View Receipt',
+                  'View Details',
                   style: TextStyle(fontSize: 13),
                 ),
               ),
@@ -1029,7 +1032,11 @@ class _ReservationsHistoryPageState extends State<ReservationsHistoryPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
-            isAdmin ? 'Admin' : reservation.createdByType,
+            isAdmin
+                ? 'Reserved by Admin'
+                : isRecorded
+                ? 'Self Reservation'
+                : 'Not recorded',
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: textColor,

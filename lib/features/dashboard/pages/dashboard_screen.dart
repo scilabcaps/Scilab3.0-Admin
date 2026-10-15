@@ -27,7 +27,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final NotificationController _notificationController = NotificationController();
+  final NotificationController _notificationController =
+      NotificationController();
   NavigationItemType _selectedItem = NavigationItemType.dashboard;
   String _selectedSubItem = '';
   String? _initialReservationId;
@@ -104,55 +105,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildSidebar() {
-    return Container(
-      width: 280,
-      color: Colors.white,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(color: Color(0xFF2E7D32)),
-            child: Row(
-              children: [
-                Image.asset(
-                  'assets/images/Scilab_Logo.png',
-                  height: 32,
-                  width: 32,
-                ),
-                SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'SciLabReserve',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+    final compact = MediaQuery.sizeOf(context).width < 1200;
+
+    return SizedBox(
+      width: compact ? 72 : 280,
+      child: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(compact ? 16 : 24),
+              decoration: const BoxDecoration(color: Color(0xFF2E7D32)),
+              child: compact
+                  ? const Center(
+                      child: Image(
+                        image: AssetImage('assets/images/Scilab_Logo.png'),
+                        height: 32,
+                        width: 32,
                       ),
+                    )
+                  : Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/Scilab_Logo.png',
+                          height: 32,
+                          width: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'SciLabReserve',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Lab Management',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Lab Management',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
             ),
-          ),
-          Expanded(
-            child: ListView(
-              children: navigationItems.map((item) {
-                return _buildNavigationItem(item);
-              }).toList(),
+            Expanded(
+              child: ListView(
+                children: navigationItems.map(_buildNavigationItem).toList(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildNavigationItem(NavigationItem item) {
+    final compact = MediaQuery.sizeOf(context).width < 1200;
     final isSelected = _selectedItem == item.type;
     final hasSubItems = item.subItems != null && item.subItems!.isNotEmpty;
     final isSubItemExpanded = hasSubItems && _expandedItems.contains(item.type);
@@ -160,88 +175,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: () {
-            setState(() {
-              _selectedItem = item.type;
-              _selectedSubItem = '';
-              if (hasSubItems) {
-                if (_expandedItems.contains(item.type)) {
-                  _expandedItems.remove(item.type);
-                } else {
-                  _expandedItems.add(item.type);
+        Tooltip(
+          message: compact ? item.title : '',
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _selectedItem = item.type;
+                _selectedSubItem = '';
+                if (hasSubItems) {
+                  if (_expandedItems.contains(item.type)) {
+                    _expandedItems.remove(item.type);
+                  } else {
+                    _expandedItems.add(item.type);
+                  }
                 }
-              }
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF2E7D32).withOpacity(0.1)
-                  : Colors.transparent,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF2E7D32)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Icon(
-                  item.icon,
-                  color: isSelected
-                      ? const Color(0xFF2E7D32)
-                      : Colors.grey[600],
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFF2E7D32)
-                          : Colors.grey[700],
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      fontSize: 16,
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 12 : 24,
+                vertical: 16,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF2E7D32).withOpacity(0.1)
+                    : Colors.transparent,
+              ),
+              child: Row(
+                mainAxisAlignment: compact
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start,
+                children: [
+                  if (!compact)
+                    Container(
+                      width: 4,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF2E7D32)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                ),
-                if (hasSubItems)
+                  if (!compact) const SizedBox(width: 20),
                   Icon(
-                    isSubItemExpanded ? Icons.expand_less : Icons.expand_more,
+                    item.icon,
                     color: isSelected
                         ? const Color(0xFF2E7D32)
                         : Colors.grey[600],
-                    size: 20,
+                    size: 24,
                   ),
-              ],
+                  if (!compact) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: TextStyle(
+                          color: isSelected
+                              ? const Color(0xFF2E7D32)
+                              : Colors.grey[700],
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (hasSubItems)
+                      Icon(
+                        isSubItemExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: isSelected
+                            ? const Color(0xFF2E7D32)
+                            : Colors.grey[600],
+                        size: 20,
+                      ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
         if (hasSubItems && isSubItemExpanded)
           Padding(
-            padding: const EdgeInsets.only(left: 48),
+            padding: EdgeInsets.only(left: compact ? 0 : 48),
             child: Column(
               children: item.subItems!.map((subItem) {
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedSubItem = subItem.title;
-                    });
-                  },
+                final child = InkWell(
+                  onTap: () => setState(() => _selectedSubItem = subItem.title),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 24,
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
@@ -250,6 +275,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           : Colors.transparent,
                     ),
                     child: Row(
+                      mainAxisAlignment: compact
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.start,
                       children: [
                         Icon(
                           subItem.icon,
@@ -258,26 +286,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               : Colors.grey[600],
                           size: 20,
                         ),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: Text(
-                            subItem.title,
-                            style: TextStyle(
-                              color: _selectedSubItem == subItem.title
-                                  ? const Color(0xFF2E7D32)
-                                  : Colors.grey[700],
-                              fontWeight: _selectedSubItem == subItem.title
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              fontSize: 14,
+                        if (!compact) ...[
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              subItem.title,
+                              style: TextStyle(
+                                color: _selectedSubItem == subItem.title
+                                    ? const Color(0xFF2E7D32)
+                                    : Colors.grey[700],
+                                fontWeight: _selectedSubItem == subItem.title
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
+                );
+                return Tooltip(
+                  message: compact ? subItem.title : '',
+                  child: child,
                 );
               }).toList(),
             ),
@@ -361,7 +395,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 child: Text(
                   count > 99 ? '99+' : '$count',
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -397,15 +435,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = userId == null
         ? null
         : await SupabaseService.database
-            .from('user_info')
-            .select('role')
-            .eq('id', userId)
-            .maybeSingle();
+              .from('user_info')
+              .select('role')
+              .eq('id', userId)
+              .maybeSingle();
     final isProfessor = user?['role']?.toString().toLowerCase() == 'professor';
 
     Navigator.of(context).pop();
     _initialReservationId = reservationId;
-    _handleNavigation(isProfessor ? 'Professor Reservations' : 'Student Reservations');
+    _handleNavigation(
+      isProfessor ? 'Professor Reservations' : 'Student Reservations',
+    );
   }
 
   String _getPageTitle() {
@@ -447,7 +487,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         case 'Announcements':
           return const AnnouncementsPage();
         case 'Reservation History':
-        return ReservationsHistoryPage(initialReservationId: _initialReservationId);
+          return ReservationsHistoryPage(
+            initialReservationId: _initialReservationId,
+          );
         case 'Professor Reservations':
           return ProfessorReservationPage(
             key: ValueKey('professor-$_initialReservationId'),
@@ -461,7 +503,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onInitialReservationHandled: _clearInitialReservation,
           );
         case 'Ongoing Reservations':
-          return const OngoingReservationPage(key: ValueKey('ongoing-reservations'));
+          return const OngoingReservationPage(
+            key: ValueKey('ongoing-reservations'),
+          );
         case 'Upcoming Reservations':
           return const OngoingReservationPage(
             key: ValueKey('upcoming-reservations'),
@@ -495,7 +539,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _NotificationDialog extends StatelessWidget {
-  const _NotificationDialog({required this.controller, required this.onNotificationTap});
+  const _NotificationDialog({
+    required this.controller,
+    required this.onNotificationTap,
+  });
   final NotificationController controller;
   final ValueChanged<AppNotification> onNotificationTap;
 
@@ -519,15 +566,32 @@ class _NotificationDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                const Expanded(child: Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-                if (controller.unreadCount > 0)
-                  TextButton(onPressed: controller.markAllAsRead, child: const Text('Mark all as read')),
-              ]),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (controller.unreadCount > 0)
+                    TextButton(
+                      onPressed: controller.markAllAsRead,
+                      child: const Text('Mark all as read'),
+                    ),
+                ],
+              ),
               if (controller.isLoading)
-                const Expanded(child: Center(child: CircularProgressIndicator()))
+                const Expanded(
+                  child: Center(child: CircularProgressIndicator()),
+                )
               else if (controller.errorMessage != null)
-                Expanded(child: Center(child: Text('Unable to load notifications.')))
+                Expanded(
+                  child: Center(child: Text('Unable to load notifications.')),
+                )
               else if (controller.notifications.isEmpty)
                 const Expanded(child: Center(child: Text('No notifications')))
               else
@@ -543,9 +607,23 @@ class _NotificationDialog extends StatelessWidget {
                           onNotificationTap(item);
                         },
                         tileColor: item.isRead ? null : const Color(0xFFE8F5E9),
-                        leading: Icon(item.isRead ? Icons.notifications_none : Icons.notifications, color: const Color(0xFF2E7D32)),
-                        title: Text(item.title, style: TextStyle(fontWeight: item.isRead ? FontWeight.normal : FontWeight.bold)),
-                        subtitle: Text('${item.message}\n${_relative(item.createdAt)}'),
+                        leading: Icon(
+                          item.isRead
+                              ? Icons.notifications_none
+                              : Icons.notifications,
+                          color: const Color(0xFF2E7D32),
+                        ),
+                        title: Text(
+                          item.title,
+                          style: TextStyle(
+                            fontWeight: item.isRead
+                                ? FontWeight.normal
+                                : FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${item.message}\n${_relative(item.createdAt)}',
+                        ),
                         isThreeLine: true,
                       );
                     },

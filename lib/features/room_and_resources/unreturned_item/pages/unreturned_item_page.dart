@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/unreturned_item_controller.dart';
 import '../models/unreturned_item_model.dart';
 import '../services/unreturned_item_export_service.dart';
@@ -39,9 +40,11 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
     try {
       final items = _controller.filteredItems;
       if (items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No unreturned items match the selected filters.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No unreturned items match the selected filters.'),
+          ),
+        );
         return;
       }
       final exporter = UnreturnedItemExportService();
@@ -67,9 +70,9 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
       );
       if (kIsWeb) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download started: ${items.length} items.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download started: ${items.length} items.')),
+        );
         return;
       }
       if (path == null) return;
@@ -79,15 +82,17 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
         await writeUnreturnedItemFile(path, bytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Saved ${items.length} items to $path'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved ${items.length} items to $path')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not generate report: $error'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -131,7 +136,8 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                       children: [
                         PopupMenuButton<String>(
                           enabled: !_isExporting,
-                          tooltip: 'Export all items matching the selected filters',
+                          tooltip:
+                              'Export all items matching the selected filters',
                           onSelected: _exportReport,
                           itemBuilder: (_) => const [
                             PopupMenuItem(
@@ -145,7 +151,9 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                           ],
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: _isExporting
                                   ? Colors.grey.shade200
@@ -160,9 +168,11 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                                     width: 18,
                                     height: 18,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                      strokeWidth: 2,
+                                    ),
                                   )
-                                else const SizedBox.shrink(),
+                                else
+                                  const SizedBox.shrink(),
                                 if (_isExporting) const SizedBox(width: 8),
                                 Text(
                                   _isExporting
@@ -227,16 +237,19 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                   const SizedBox(width: 8),
                   _buildTabButton('Students with Unreturned Items', 'students'),
                   const SizedBox(width: 8),
-                  _buildTabButton('Professors with Unreturned Items', 'professors'),
+                  _buildTabButton(
+                    'Professors with Unreturned Items',
+                    'professors',
+                  ),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AbsorbPointer(
-              absorbing: _isExporting,
-              child: _buildSearchBar(),
-            ),
+              child: AbsorbPointer(
+                absorbing: _isExporting,
+                child: _buildSearchBar(),
+              ),
             ),
             const SizedBox(height: 12),
             Padding(
@@ -247,9 +260,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
               ),
             ),
             const SizedBox(height: 20),
-            Expanded(
-              child: _buildTabContent(),
-            ),
+            Expanded(child: _buildTabContent()),
           ],
         ),
       ),
@@ -365,8 +376,13 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                   child: DropdownButton<String>(
                     value: value,
                     isExpanded: true,
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-                    items: (items as List<MapEntry<String, String>>).map((entry) {
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.grey.shade600,
+                    ),
+                    items: (items as List<MapEntry<String, String>>).map((
+                      entry,
+                    ) {
                       return DropdownMenuItem<String>(
                         value: entry.key,
                         child: Text(
@@ -390,7 +406,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                       hint,
                       style: const TextStyle(fontSize: 13, color: Colors.grey),
                     ),
-                    icon: Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.grey.shade600,
+                    ),
                     items: (items as List<String?>).map((item) {
                       return DropdownMenuItem<String?>(
                         value: item,
@@ -411,6 +430,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
   }
 
   Widget _buildTabContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     switch (_controller.selectedTab) {
       case 'all':
         return _buildAllItemsTab();
@@ -487,10 +507,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
           const SizedBox(height: 16),
           Text(
             message,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
       ),
@@ -543,7 +560,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(6),
@@ -576,10 +596,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                 const SizedBox(height: 6),
                 Text(
                   item.borrowerName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -667,7 +684,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
 
   Widget _buildStudentSection(Map<String, dynamic> student) {
     final items = student['items'] as List<UnreturnedItem>;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
@@ -727,7 +744,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFF9800).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(20),
@@ -754,7 +774,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(20),
@@ -790,7 +813,9 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
-              children: items.map((item) => _buildUnreturnedItemCard(item)).toList(),
+              children: items
+                  .map((item) => _buildUnreturnedItemCard(item))
+                  .toList(),
             ),
           ),
         ],
@@ -800,7 +825,7 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
 
   Widget _buildProfessorSection(Map<String, dynamic> professor) {
     final items = professor['items'] as List<UnreturnedItem>;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
@@ -860,7 +885,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF31CB00).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(20),
@@ -887,7 +915,10 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(20),
@@ -923,7 +954,9 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
-              children: items.map((item) => _buildUnreturnedItemCard(item)).toList(),
+              children: items
+                  .map((item) => _buildUnreturnedItemCard(item))
+                  .toList(),
             ),
           ),
         ],
@@ -940,7 +973,11 @@ class _UnreturnedItemPageState extends State<UnreturnedItemPage> {
           if (quantity == item.unreturnedQuantity) {
             _controller.returnItem(item.detailId, item.borrowerId);
           } else {
-            _controller.returnPartialItem(item.detailId, item.borrowerId, quantity);
+            _controller.returnPartialItem(
+              item.detailId,
+              item.borrowerId,
+              quantity,
+            );
           }
         },
       ),

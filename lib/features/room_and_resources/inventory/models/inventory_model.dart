@@ -44,7 +44,7 @@ class InventoryItem {
         expiration: json['expiration']?.toString(),
       );
     }
-    
+
     // Handle lab_assets table
     if (json.containsKey('asset_id')) {
       final availableStock = json['available_stock'] as int? ?? 0;
@@ -61,7 +61,7 @@ class InventoryItem {
         conditionNotes: json['condition_notes'],
       );
     }
-    
+
     // Fallback for legacy format
     return InventoryItem(
       itemId: json['item_id']?.toString() ?? '',
@@ -71,6 +71,11 @@ class InventoryItem {
       status: json['status'] ?? 'Available',
       stockLevel: json['stock_level'] ?? 'Medium',
       lastUpdated: json['last_updated'],
+      formula: json['formula'],
+      unit: json['unit'],
+      expiration: json['expiration']?.toString(),
+      totalStock: json['total_stock'] as num?,
+      conditionNotes: json['condition_notes'],
     );
   }
 

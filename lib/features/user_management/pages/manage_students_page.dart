@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../services/user_account_export_service.dart';
 import '../services/user_account_file_writer.dart';
 import '../../../core/utils/app_dialog.dart';
+import '../../../core/utils/table_loading_indicator.dart';
 
 class ManageStudentsPage extends StatefulWidget {
   const ManageStudentsPage({super.key});
@@ -38,7 +39,8 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         : _currentPage.clamp(1, _totalPages) as int;
     final start = (page - 1) * _pageSize;
     if (start >= _controller.students.length) return const [];
-    final end = (start + _pageSize).clamp(0, _controller.students.length) as int;
+    final end =
+        (start + _pageSize).clamp(0, _controller.students.length) as int;
     return _controller.students.sublist(start, end);
   }
 
@@ -69,17 +71,23 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
     try {
       final users = _controller.students;
       if (users.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No student accounts found.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No student accounts found.')),
+        );
         return;
       }
       final exporter = UserAccountExportService();
       final bytes = format == 'xlsx'
           ? exporter.generateExcel(
-              users: users, role: 'Student', generatedAt: generatedAt)
+              users: users,
+              role: 'Student',
+              generatedAt: generatedAt,
+            )
           : await exporter.generatePdf(
-              users: users, role: 'Student', generatedAt: generatedAt);
+              users: users,
+              role: 'Student',
+              generatedAt: generatedAt,
+            );
       if (!mounted) return;
       final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
       final path = await FilePicker.platform.saveFile(
@@ -91,9 +99,11 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       );
       if (kIsWeb) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download started: ${users.length} accounts.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download started: ${users.length} accounts.'),
+          ),
+        );
         return;
       }
       if (path == null) return;
@@ -103,15 +113,17 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         await writeUserAccountFile(path, bytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Saved ${users.length} accounts to $path'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved ${users.length} accounts to $path')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not generate report: $error'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -143,12 +155,12 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                 ],
               ),
               const SizedBox(height: 32),
-              
+
               // Create New Student Account Section
               _buildCreateStudentSection(theme),
-              
+
               const SizedBox(height: 40),
-              
+
               // Existing Students Section
               _buildExistingStudentsSection(theme),
             ],
@@ -170,9 +182,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: _isExporting
-              ? Colors.grey.shade200
-              : const Color(0xFF31CB00),
+          color: _isExporting ? Colors.grey.shade200 : const Color(0xFF31CB00),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -186,10 +196,13 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                   )
                 : const Icon(Icons.download, size: 20, color: Colors.white),
             const SizedBox(width: 8),
-            Text(_isExporting ? 'Generating report...' : 'Generate Report',
-                style: TextStyle(
-                    color: _isExporting ? Colors.grey.shade700 : Colors.white,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              _isExporting ? 'Generating report...' : 'Generate Report',
+              style: TextStyle(
+                color: _isExporting ? Colors.grey.shade700 : Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -215,10 +228,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         children: [
           const Text(
             'Create New Student Account',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
           Form(
@@ -313,12 +323,19 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _controller.errorMessage!,
-                            style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ],
@@ -342,7 +359,9 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(
@@ -374,9 +393,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         filled: true,
         fillColor: Colors.grey[50],
       ),
@@ -401,9 +418,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
           icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility),
           onPressed: onTap,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         filled: true,
         fillColor: Colors.grey[50],
       ),
@@ -430,10 +445,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         children: [
           const Text(
             'Existing Students',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           _buildStudentsTable(theme),
@@ -443,13 +455,17 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
   }
 
   Widget _buildStudentsTable(ThemeData theme) {
+    if (_controller.isLoading) return const TableLoadingIndicator();
+
     return Column(
       children: [
         _buildTableHeader(theme),
         if (_controller.students.isEmpty)
           _buildEmptyState()
         else
-          ..._visibleStudents.map((student) => _buildStudentRow(student, theme)),
+          ..._visibleStudents.map(
+            (student) => _buildStudentRow(student, theme),
+          ),
         if (_totalPages > 1) _buildAccountPagination(),
       ],
     );
@@ -505,10 +521,50 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 3, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 3, child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Phone', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              'Email',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Phone',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -526,11 +582,7 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.person_outline,
-            size: 64,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.person_outline, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
             'No students found',
@@ -596,7 +648,8 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                       final confirmed = await AppDialog.showConfirmDialog(
                         context: context,
                         title: 'Unban User',
-                        content: 'Are you sure you want to unban ${student.fullName}?',
+                        content:
+                            'Are you sure you want to unban ${student.fullName}?',
                         icon: Icons.restore,
                         confirmColor: Colors.green,
                       );
@@ -607,7 +660,8 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                       final confirmed = await AppDialog.showConfirmDialog(
                         context: context,
                         title: 'Ban User',
-                        content: 'Are you sure you want to ban ${student.fullName}?',
+                        content:
+                            'Are you sure you want to ban ${student.fullName}?',
                         icon: Icons.block,
                         confirmColor: Colors.red,
                       );
@@ -631,11 +685,11 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
         _passwordController.text,
         _confirmPasswordController.text,
       );
-      
+
       if (passwordMatchError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(passwordMatchError)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(passwordMatchError)));
         return;
       }
 
@@ -678,10 +732,16 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
   }
 
   void _showEditDialog(User student) {
-    final editFirstNameController = TextEditingController(text: student.firstName);
-    final editLastNameController = TextEditingController(text: student.lastName);
+    final editFirstNameController = TextEditingController(
+      text: student.firstName,
+    );
+    final editLastNameController = TextEditingController(
+      text: student.lastName,
+    );
     final editEmailController = TextEditingController(text: student.email);
-    final editPhoneController = TextEditingController(text: student.phone ?? '');
+    final editPhoneController = TextEditingController(
+      text: student.phone ?? '',
+    );
     final editFormKey = GlobalKey<FormState>();
 
     showDialog(
@@ -770,7 +830,9 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                               : editPhoneController.text,
                         );
 
-                        final success = await _controller.updateUser(updatedUser);
+                        final success = await _controller.updateUser(
+                          updatedUser,
+                        );
 
                         setState(() {
                           _isUpdating = false;
@@ -779,11 +841,15 @@ class _ManageStudentsPageState extends State<ManageStudentsPage> {
                         if (success) {
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Student updated successfully')),
+                            const SnackBar(
+                              content: Text('Student updated successfully'),
+                            ),
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to update student')),
+                            const SnackBar(
+                              content: Text('Failed to update student'),
+                            ),
                           );
                         }
                       }

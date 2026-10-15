@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'core/config/environment_loader.dart';
 import 'features/auth/pages/login_screen.dart';
 import 'features/dashboard/pages/dashboard_screen.dart';
 import 'core/api/supabase_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
+  await loadEnvironment();
   await SupabaseConfig.initialize();
   runApp(const MyApp());
 }

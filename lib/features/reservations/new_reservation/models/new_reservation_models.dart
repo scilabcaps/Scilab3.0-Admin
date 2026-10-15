@@ -72,6 +72,18 @@ class ReservationResource {
     this.status,
   });
 
+  ReservationResource copyWith({num? availableQuantity}) {
+    return ReservationResource(
+      id: id,
+      name: name,
+      type: type,
+      availableQuantity: availableQuantity ?? this.availableQuantity,
+      description: description,
+      unit: unit,
+      status: status,
+    );
+  }
+
   bool get isAvailable {
     if (type == ReservationResourceType.room) {
       return status?.toLowerCase() == 'available';
@@ -116,6 +128,7 @@ class NewReservationRequest {
   final int startMinutes;
   final int endMinutes;
   final String? additionalNote;
+  final String? inventoryHoldCartId;
   final List<ReservationCartItem> items;
 
   const NewReservationRequest({
@@ -125,6 +138,7 @@ class NewReservationRequest {
     required this.endMinutes,
     required this.items,
     this.additionalNote,
+    this.inventoryHoldCartId,
   });
 
   ReservationCartItem? get room {

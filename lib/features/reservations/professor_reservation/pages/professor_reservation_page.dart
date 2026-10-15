@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/professor_reservation_controller.dart';
 import '../models/professor_reservation_model.dart';
-import '../widgets/approval_modal.dart';
+import '../../shared/reservation_details_dialog.dart';
 
 class ProfessorReservationPage extends StatefulWidget {
   const ProfessorReservationPage({
@@ -31,6 +32,7 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
 
   Future<void> _loadReservationsAndOpenInitial() async {
     await _controller.loadReservations();
+    await _controller.startRealtime();
     if (!mounted || widget.initialReservationId == null) return;
     final reservation = _controller.reservations
         .where((item) => item.reservationId == widget.initialReservationId)
@@ -38,7 +40,7 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
     if (reservation != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _showApprovalModal(reservation);
+          _showReservationDetails(reservation);
           widget.onInitialReservationHandled?.call();
         }
       });
@@ -52,13 +54,45 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
     super.dispose();
   }
 
-  void _showApprovalModal(ProfessorReservation reservation) {
+  void _showReservationDetails(ProfessorReservation reservation) {
     showDialog(
       context: context,
-      builder: (context) => ApprovalModal(
-        reservation: reservation,
-        controller: _controller,
-        onClose: () => Navigator.pop(context),
+      builder: (context) => ReservationDetailsDialog(
+        reservationId: reservation.reservationId,
+        date: reservation.date,
+        time: reservation.time,
+        status: reservation.status,
+        resources: reservationDetailItemsFromText(reservation.resources),
+        footerActions: reservation.status.toLowerCase() == 'pending'
+            ? [
+                ElevatedButton(
+                  onPressed: () async {
+                    await _controller.rejectReservation(
+                      reservation.reservationId,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF44336),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Reject'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await _controller.approveReservation(
+                      reservation.reservationId,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF31CB00),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Approve'),
+                ),
+              ]
+            : const [],
       ),
     );
   }
@@ -265,11 +299,8 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
   }
 
   Widget _buildReservationsContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     final filteredReservations = _filteredReservations;
-
-    if (filteredReservations.isEmpty) {
-      return _buildEmptyState();
-    }
 
     return Container(
       width: double.infinity,
@@ -287,16 +318,20 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
       child: Column(
         children: [
           _buildTableHeader(),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                children: filteredReservations
-                    .map((reservation) => _buildReservationRow(reservation))
-                    .toList(),
+          if (filteredReservations.isEmpty)
+            _buildEmptyState()
+          else ...[
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: filteredReservations
+                      .map((reservation) => _buildReservationRow(reservation))
+                      .toList(),
+                ),
               ),
             ),
-          ),
-          _buildPagination(),
+            _buildPagination(),
+          ],
         ],
       ),
     );
@@ -450,7 +485,7 @@ class _ProfessorReservationPageState extends State<ProfessorReservationPage> {
             child: SizedBox(
               height: 32,
               child: ElevatedButton(
-                onPressed: () => _showApprovalModal(reservation),
+                onPressed: () => _showReservationDetails(reservation),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF31CB00),
                   foregroundColor: Colors.white,

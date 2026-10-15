@@ -1,13 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/service/cache_service.dart';
 import '../models/reservations_history_model.dart';
 
 class ReservationsHistoryService {
   final SupabaseClient _client = Supabase.instance.client;
-  final CacheService _cache = CacheService();
 
   /// Fetch reservations with pagination
-  Future<List<ReservationHistory>> fetchReservations({int page = 1, int limit = 20}) async {
+  Future<List<ReservationHistory>> fetchReservations({
+    int page = 1,
+    int limit = 20,
+  }) async {
     final start = (page - 1) * limit;
     final end = start + limit - 1;
 
@@ -37,12 +38,21 @@ class ReservationsHistoryService {
               room_name
             )
           ''')
-          .inFilter('status', ['Completed', 'Declined', 'Cancelled', 'Unreturned'])
+          .inFilter('status', [
+            'Completed',
+            'Declined',
+            'Cancelled',
+            'Unreturned',
+          ])
           .order('created_at', ascending: false)
+          .order('reservation_id', ascending: false)
           .range(start, end);
 
       // Fetch user info for all users in reservations
-      final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
+      final userIds = reservationsResponse
+          .map((r) => r['user_id'] as String)
+          .toSet()
+          .toList();
       final creatorIds = reservationsResponse
           .map((r) => r['created_by'] as String?)
           .whereType<String>()
@@ -70,9 +80,7 @@ class ReservationsHistoryService {
       }
 
       // Fetch all reservation items with asset info
-      final itemsResponse = await _client
-          .from('reservation_items')
-          .select('''
+      final itemsResponse = await _client.from('reservation_items').select('''
             detail_id,
             reservation_id,
             asset_id,
@@ -111,7 +119,9 @@ class ReservationsHistoryService {
         final reservationId = reservation['reservation_id'] as int;
 
         // Determine reservation type based on whether it has items
-        final hasItems = itemsMap.containsKey(reservationId) && itemsMap[reservationId]!.isNotEmpty;
+        final hasItems =
+            itemsMap.containsKey(reservationId) &&
+            itemsMap[reservationId]!.isNotEmpty;
         final reservationType = hasItems ? 'Equipment' : 'Room';
 
         // Determine room/item name
@@ -127,7 +137,9 @@ class ReservationsHistoryService {
         } else {
           // Use room name from rooms relation
           final room = reservation['rooms'];
-          roomItemReserved = room != null ? (room['room_name'] ?? 'Unknown Room') : 'Room ID: ${reservation['room_id'] ?? 'Unknown'}';
+          roomItemReserved = room != null
+              ? (room['room_name'] ?? 'Unknown Room')
+              : 'Room ID: ${reservation['room_id'] ?? 'Unknown'}';
         }
 
         // Format time schedule
@@ -153,24 +165,26 @@ class ReservationsHistoryService {
             ? null
             : creatorInfoMap[createdById];
         final createdByName = creatorInfo == null
-            ? 'Not recorded'
+            ? userName
             : _fullName(creatorInfo);
         final createdByType = _creatorType(creatorInfo);
 
-        reservations.add(ReservationHistory(
-          reservationId: reservationId.toString(),
-          userName: userName,
-          role: role,
-          reservationType: reservationType,
-          roomItemReserved: roomItemReserved,
-          reservationDate: _formatDate(reservationDate),
-          timeSchedule: timeSchedule,
-          status: reservation['status'] ?? 'Pending',
-          dateCreated: _formatDateTime(createdAt),
-          createdByName: createdByName,
-          createdByType: createdByType,
-          items: itemsMap[reservationId],
-        ));
+        reservations.add(
+          ReservationHistory(
+            reservationId: reservationId.toString(),
+            userName: userName,
+            role: role,
+            reservationType: reservationType,
+            roomItemReserved: roomItemReserved,
+            reservationDate: _formatDate(reservationDate),
+            timeSchedule: timeSchedule,
+            status: reservation['status'] ?? 'Pending',
+            dateCreated: _formatDateTime(createdAt),
+            createdByName: createdByName,
+            createdByType: createdByType,
+            items: itemsMap[reservationId],
+          ),
+        );
       }
 
       return reservations;
@@ -200,7 +214,12 @@ class ReservationsHistoryService {
       final response = await _client
           .from('reservations')
           .select('reservation_id')
-          .inFilter('status', ['Completed', 'Declined', 'Cancelled', 'Unreturned'])
+          .inFilter('status', [
+            'Completed',
+            'Declined',
+            'Cancelled',
+            'Unreturned',
+          ])
           .count();
       return response.count;
     } catch (e) {
@@ -274,13 +293,15 @@ class ReservationsHistoryService {
       for (var item in itemsResponse) {
         final asset = item['lab_assets'];
         if (asset != null) {
-          items.add(ReservedItem(
-            itemId: asset['asset_id'].toString(),
-            itemName: asset['item_name'] ?? '',
-            quantity: item['quantity_borrowed'] ?? 0,
-            returnedQuantity: item['quantity_returned'] ?? 0,
-            status: item['is_returned'] == true ? 'Returned' : 'Pending',
-          ));
+          items.add(
+            ReservedItem(
+              itemId: asset['asset_id'].toString(),
+              itemName: asset['item_name'] ?? '',
+              quantity: item['quantity_borrowed'] ?? 0,
+              returnedQuantity: item['quantity_returned'] ?? 0,
+              status: item['is_returned'] == true ? 'Returned' : 'Pending',
+            ),
+          );
         }
       }
 
@@ -338,9 +359,7 @@ class ReservationsHistoryService {
         timeSchedule: timeSchedule,
         status: reservationsResponse['status'] ?? 'Pending',
         dateCreated: _formatDateTime(createdAt),
-        createdByName: creatorInfo == null
-            ? 'Not recorded'
-            : _fullName(creatorInfo),
+        createdByName: creatorInfo == null ? userName : _fullName(creatorInfo),
         createdByType: _creatorType(creatorInfo),
         items: items.isNotEmpty ? items : null,
       );
@@ -352,14 +371,15 @@ class ReservationsHistoryService {
   String _fullName(Map<String, dynamic> userInfo) {
     final firstName = (userInfo['first_name'] as String? ?? '').trim();
     final lastName = (userInfo['last_name'] as String? ?? '').trim();
-    final fullName = [firstName, lastName]
-        .where((part) => part.isNotEmpty)
-        .join(' ');
+    final fullName = [
+      firstName,
+      lastName,
+    ].where((part) => part.isNotEmpty).join(' ');
     return fullName.isNotEmpty ? fullName : 'Unknown User';
   }
 
   String _creatorType(Map<String, dynamic>? creatorInfo) {
-    if (creatorInfo == null) return 'Not recorded';
+    if (creatorInfo == null) return 'Self-submitted';
     final role = creatorInfo['role']?.toString().toLowerCase();
     return role == 'admin' || role == 'administrator'
         ? 'Admin'
@@ -417,8 +437,4 @@ class ReservationsHistoryService {
     return '$start - $end';
   }
 
-  /// Clear reservations history cache
-  Future<void> clearCache() async {
-    await _cache.remove('reservations_history');
-  }
 }

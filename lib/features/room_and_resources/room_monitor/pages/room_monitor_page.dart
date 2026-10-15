@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/room_controller.dart';
 import '../models/room_model.dart';
 
@@ -29,17 +30,21 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
 
   List<Room> get _filteredRooms {
     var rooms = _controller.rooms;
-    
+
     if (_selectedFilter != 'All') {
       rooms = rooms.where((room) => room.status == _selectedFilter).toList();
     }
-    
+
     if (_searchController.text.isNotEmpty) {
-      rooms = rooms.where((room) => 
-        room.roomName.toLowerCase().contains(_searchController.text.toLowerCase())
-      ).toList();
+      rooms = rooms
+          .where(
+            (room) => room.roomName.toLowerCase().contains(
+              _searchController.text.toLowerCase(),
+            ),
+          )
+          .toList();
     }
-    
+
     return rooms;
   }
 
@@ -111,7 +116,12 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
                     ),
                   ],
                 ),
-                child: _controller.rooms.isEmpty
+                child: _controller.isLoading
+                    ? const SizedBox(
+                        height: 220,
+                        child: TableLoadingIndicator(),
+                      )
+                    : _controller.rooms.isEmpty
                     ? _buildEmptyState()
                     : _buildRoomsList(),
               ),
@@ -123,17 +133,31 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
   }
 
   Widget _buildStatsCards() {
-    final available = _controller.rooms.where((r) => r.status == 'Available').length;
-    final maintenance = _controller.rooms.where((r) => r.status == 'Maintenance').length;
+    final available = _controller.rooms
+        .where((r) => r.status == 'Available')
+        .length;
+    final maintenance = _controller.rooms
+        .where((r) => r.status == 'Maintenance')
+        .length;
 
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard('Available', available, const Color(0xFF4CAF50), Icons.check_circle),
+          child: _buildStatCard(
+            'Available',
+            available,
+            const Color(0xFF4CAF50),
+            Icons.check_circle,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildStatCard('Maintenance', maintenance, const Color(0xFFFF9800), Icons.build),
+          child: _buildStatCard(
+            'Maintenance',
+            maintenance,
+            const Color(0xFFFF9800),
+            Icons.build,
+          ),
         ),
       ],
     );
@@ -279,10 +303,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
             const SizedBox(height: 16),
             Text(
               'No rooms found',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -344,7 +365,11 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.people_outline, size: 16, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.people_outline,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'Capacity: ${room.capacity}',
@@ -375,11 +400,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
               ),
               const SizedBox(width: 24),
               Expanded(
-                child: _buildInfoRow(
-                  Icons.access_time,
-                  'Time',
-                  room.timeRange,
-                ),
+                child: _buildInfoRow(Icons.access_time, 'Time', room.timeRange),
               ),
             ],
           ),
@@ -414,9 +435,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
                   IconButton(
                     onPressed: () => _showDeleteRoomDialog(room),
                     icon: const Icon(Icons.delete, size: 20),
-                    style: IconButton.styleFrom(
-                      foregroundColor: Colors.red,
-                    ),
+                    style: IconButton.styleFrom(foregroundColor: Colors.red),
                   ),
                 ],
               ),
@@ -437,17 +456,11 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -487,10 +500,7 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           const SizedBox(height: 16),
           Text(
             'No rooms found',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -517,14 +527,8 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
           dropdownColor: Colors.white,
           icon: const Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey),
           items: const [
-            DropdownMenuItem(
-              value: 'Available',
-              child: Text('Available'),
-            ),
-            DropdownMenuItem(
-              value: 'Maintenance',
-              child: Text('Maintenance'),
-            ),
+            DropdownMenuItem(value: 'Available', child: Text('Available')),
+            DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
           ],
           onChanged: (String? newStatus) {
             if (newStatus != null) {
@@ -579,10 +583,14 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'Available',child: Text('Available')),
-                DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
+                DropdownMenuItem(value: 'Available', child: Text('Available')),
+                DropdownMenuItem(
+                  value: 'Maintenance',
+                  child: Text('Maintenance'),
+                ),
               ],
-              onChanged: (value) => statusController.text = value ?? 'Available',
+              onChanged: (value) =>
+                  statusController.text = value ?? 'Available',
             ),
           ],
         ),
@@ -623,8 +631,12 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
 
   void _showEditRoomDialog(Room room) {
     final nameController = TextEditingController(text: room.roomName);
-    final capacityController = TextEditingController(text: room.capacity.toString());
-    String selectedStatus = room.status == 'Maintenance' ? 'Maintenance' : 'Available';
+    final capacityController = TextEditingController(
+      text: room.capacity.toString(),
+    );
+    String selectedStatus = room.status == 'Maintenance'
+        ? 'Maintenance'
+        : 'Available';
 
     showDialog(
       context: context,
@@ -657,8 +669,11 @@ class _RoomMonitorPageState extends State<RoomMonitorPage> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'Available',child: Text('Available')),
-                DropdownMenuItem(value: 'Maintenance',child: Text('Maintenance')),
+                DropdownMenuItem(value: 'Available', child: Text('Available')),
+                DropdownMenuItem(
+                  value: 'Maintenance',
+                  child: Text('Maintenance'),
+                ),
               ],
               onChanged: (value) => selectedStatus = value ?? 'Available',
             ),

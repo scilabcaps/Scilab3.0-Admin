@@ -49,6 +49,46 @@ void main() {
     expect(controller.changeQuantity(gateway.chemical.key, 1), isFalse);
   });
 
+  test('paginates resources in groups of nine', () {
+    controller.selectType(ReservationResourceType.equipment);
+
+    expect(controller.resourcePage, 1);
+    expect(controller.resourcePageCount, 2);
+    expect(controller.paginatedResources, hasLength(9));
+
+    controller.nextResourcePage();
+
+    expect(controller.resourcePage, 2);
+    expect(controller.paginatedResources, hasLength(2));
+    controller.nextResourcePage();
+    expect(controller.resourcePage, 2);
+
+    controller.previousResourcePage();
+    controller.previousResourcePage();
+    expect(controller.resourcePage, 1);
+  });
+
+  test('changing resource category resets pagination', () {
+    controller.selectType(ReservationResourceType.equipment);
+    controller.nextResourcePage();
+    expect(controller.resourcePage, 2);
+
+    controller.selectType(ReservationResourceType.chemical);
+
+    expect(controller.resourcePage, 1);
+    expect(controller.paginatedResources, [gateway.chemical]);
+  });
+
+  test('cart selections persist while changing resource pages', () {
+    controller.selectType(ReservationResourceType.equipment);
+    final selected = controller.paginatedResources.first;
+    expect(controller.addResource(selected), isTrue);
+
+    controller.nextResourcePage();
+
+    expect(controller.cart.single.resource.key, selected.key);
+  });
+
   test('time selection rejects a range that crosses a booking', () async {
     controller.addResource(gateway.roomOne);
     await Future<void>.delayed(Duration.zero);
@@ -94,6 +134,19 @@ void main() {
       gateway.createdRequest!.items.single.resource.type,
       ReservationResourceType.equipment,
     );
+  });
+
+  test('keeps the cart and exposes the error when submission fails', () async {
+    gateway.shouldFailCreate = true;
+    controller.addResource(gateway.equipment);
+    expect(controller.selectTimeBoundary(10 * 60), isNull);
+    expect(controller.selectTimeBoundary(11 * 60), isNull);
+
+    final id = await controller.submit('Should fail');
+
+    expect(id, isNull);
+    expect(controller.errorMessage, contains('database deduction failed'));
+    expect(controller.cart, hasLength(1));
   });
 }
 
@@ -148,8 +201,19 @@ class _FakeGateway implements NewReservationGateway {
     availableQuantity: 4,
     description: 'Available',
   );
+  late final List<ReservationResource> extraEquipment = List.generate(
+    10,
+    (index) => ReservationResource(
+      id: 100 + index,
+      name: 'Equipment ${index + 2}',
+      type: ReservationResourceType.equipment,
+      availableQuantity: 5,
+      description: 'Available',
+    ),
+  );
 
   NewReservationRequest? createdRequest;
+  bool shouldFailCreate = false;
 
   @override
   Future<List<ReservationAccount>> loadReservationAccounts() async {
@@ -158,13 +222,23 @@ class _FakeGateway implements NewReservationGateway {
 
   @override
   Future<int> createReservation(NewReservationRequest request) async {
+    if (shouldFailCreate) {
+      throw StateError('database deduction failed');
+    }
     createdRequest = request;
     return 42;
   }
 
   @override
   Future<List<ReservationResource>> loadResources() async {
-    return [roomOne, roomTwo, chemical, equipment, glassware];
+    return [
+      roomOne,
+      roomTwo,
+      chemical,
+      equipment,
+      ...extraEquipment,
+      glassware,
+    ];
   }
 
   @override

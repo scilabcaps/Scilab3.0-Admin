@@ -7,16 +7,19 @@ import '../../../audit/services/audit_service.dart';
 class UnreturnedItemController extends ChangeNotifier {
   final AuditService _auditService = AuditService();
   List<UnreturnedItem> _unreturnedItems = [];
+  bool _isLoading = false;
   String _selectedTab = 'all'; // 'all', 'students', 'professors'
   String _searchTerm = '';
   String? _selectedCategory; // null = all
-  String _selectedDueDateFilter = 'all'; // 'all', 'overdue', 'today', 'this_week', 'next_week'
+  String _selectedDueDateFilter =
+      'all'; // 'all', 'overdue', 'today', 'this_week', 'next_week'
 
   List<UnreturnedItem> get unreturnedItems => _unreturnedItems;
   String get selectedTab => _selectedTab;
   String get searchTerm => _searchTerm;
   String? get selectedCategory => _selectedCategory;
   String get selectedDueDateFilter => _selectedDueDateFilter;
+  bool get isLoading => _isLoading;
 
   List<String> get categories {
     final cats = _unreturnedItems.map((i) => i.itemType).toSet().toList();
@@ -31,10 +34,12 @@ class UnreturnedItemController extends ChangeNotifier {
         'professors' => item.borrowerType.toLowerCase() == 'professor',
         _ => true,
       };
-      final matchesSearch = item.itemName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
+      final matchesSearch =
+          item.itemName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
           item.borrowerName.toLowerCase().contains(_searchTerm.toLowerCase());
 
-      final matchesCategory = _selectedCategory == null ||
+      final matchesCategory =
+          _selectedCategory == null ||
           item.itemType.toLowerCase() == _selectedCategory!.toLowerCase();
 
       final matchesDueDate = _matchesDueDateFilter(item);
@@ -93,6 +98,8 @@ class UnreturnedItemController extends ChangeNotifier {
   }
 
   Future<void> loadUnreturnedItems() async {
+    _isLoading = true;
+    notifyListeners();
     try {
       // Check current user
       final currentUser = SupabaseService.auth.currentUser;
@@ -114,7 +121,9 @@ class UnreturnedItemController extends ChangeNotifier {
       final simpleResponse = await SupabaseService.database
           .from(SupabaseConfig.tableReservationItems)
           .select('*');
-      debugPrint('Simple query (all reservation_items): ${simpleResponse.length} rows');
+      debugPrint(
+        'Simple query (all reservation_items): ${simpleResponse.length} rows',
+      );
 
       // Now try the full query with filters
       final response = await SupabaseService.database
@@ -162,7 +171,7 @@ class UnreturnedItemController extends ChangeNotifier {
             .from(SupabaseConfig.tableUserInfo)
             .select('id, first_name, last_name, role')
             .inFilter('id', userIds.toList());
-        
+
         for (var user in usersResponse) {
           userInfoMap[user['id'] as String] = user;
         }
@@ -183,10 +192,12 @@ class UnreturnedItemController extends ChangeNotifier {
         // Try to get user info from the map
         if (userId != null && userInfoMap.containsKey(userId)) {
           final userInfo = userInfoMap[userId]!;
-          borrowerName = '${userInfo['first_name'] ?? ''} ${userInfo['last_name'] ?? ''}'.trim();
+          borrowerName =
+              '${userInfo['first_name'] ?? ''} ${userInfo['last_name'] ?? ''}'
+                  .trim();
           borrowerType = userInfo['role'] ?? 'Unknown';
           borrowerId = userInfo['id']?.toString() ?? 'Unknown';
-          
+
           if (borrowerName.isEmpty) {
             borrowerName = 'Unknown Borrower';
           }
@@ -199,34 +210,42 @@ class UnreturnedItemController extends ChangeNotifier {
         final isReturned = item['is_returned'] as bool? ?? false;
         final unreturnedQuantity = borrowedQuantity - returnedQuantity;
 
-        debugPrint('Item ${item['detail_id']}: borrowed=$borrowedQuantity, returned=$returnedQuantity, isReturned=$isReturned, unreturned=$unreturnedQuantity');
+        debugPrint(
+          'Item ${item['detail_id']}: borrowed=$borrowedQuantity, returned=$returnedQuantity, isReturned=$isReturned, unreturned=$unreturnedQuantity',
+        );
 
         if (!isReturned && unreturnedQuantity > 0) {
-          items.add(UnreturnedItem(
-            detailId: item['detail_id']?.toString() ?? '',
-            reservationId: item['reservation_id']?.toString() ?? '',
-            itemId: item['asset_id']?.toString() ?? '',
-            itemName: labAsset?['item_name'] ?? 'Unknown Item',
-            itemType: labAsset?['category'] ?? 'Unknown Category',
-            borrowerName: borrowerName,
-            borrowerType: borrowerType,
-            borrowerId: borrowerId,
-            borrowedQuantity: borrowedQuantity,
-            returnedQuantity: returnedQuantity,
-            unreturnedQuantity: unreturnedQuantity,
-            reservationDate: reservation?['reservation_date'] ?? 'Unknown Date',
-            dueDate: null, // due_date column doesn't exist in reservations table
-          ));
+          items.add(
+            UnreturnedItem(
+              detailId: item['detail_id']?.toString() ?? '',
+              reservationId: item['reservation_id']?.toString() ?? '',
+              itemId: item['asset_id']?.toString() ?? '',
+              itemName: labAsset?['item_name'] ?? 'Unknown Item',
+              itemType: labAsset?['category'] ?? 'Unknown Category',
+              borrowerName: borrowerName,
+              borrowerType: borrowerType,
+              borrowerId: borrowerId,
+              borrowedQuantity: borrowedQuantity,
+              returnedQuantity: returnedQuantity,
+              unreturnedQuantity: unreturnedQuantity,
+              reservationDate:
+                  reservation?['reservation_date'] ?? 'Unknown Date',
+              dueDate:
+                  null, // due_date column doesn't exist in reservations table
+            ),
+          );
         }
       }
 
       debugPrint('Final unreturned items count: ${items.length}');
 
       _unreturnedItems = items;
+      _isLoading = false;
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading unreturned items: $e');
       _unreturnedItems = _getMockUnreturnedItems();
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -321,26 +340,26 @@ class UnreturnedItemController extends ChangeNotifier {
       final index = _unreturnedItems.indexWhere(
         (i) => i.detailId == detailId && i.borrowerId == borrowerId,
       );
-      
+
       if (index != -1) {
         final item = _unreturnedItems[index];
         if (item.unreturnedQuantity > 0) {
           final newReturnedQuantity = item.borrowedQuantity;
-          
+
           // Get current asset stock
           final assetResponse = await SupabaseService.database
               .from(SupabaseConfig.tableLabAssets)
               .select('available_stock, total_stock')
               .eq('asset_id', int.parse(item.itemId))
               .single();
-          
+
           final previousStock = assetResponse['available_stock'] as int? ?? 0;
           final totalStock = assetResponse['total_stock'] as int? ?? 0;
           final newStock = previousStock + item.unreturnedQuantity;
-          
+
           // Ensure new stock doesn't exceed total stock
           final finalStock = newStock > totalStock ? totalStock : newStock;
-          
+
           // Update reservation item
           await SupabaseService.database
               .from(SupabaseConfig.tableReservationItems)
@@ -349,13 +368,13 @@ class UnreturnedItemController extends ChangeNotifier {
                 'is_returned': true,
               })
               .eq('detail_id', int.parse(detailId));
-          
+
           // Update lab asset stock
           await SupabaseService.database
               .from(SupabaseConfig.tableLabAssets)
               .update({'available_stock': finalStock})
               .eq('asset_id', int.parse(item.itemId));
-          
+
           // Log to stock history
           await SupabaseService.database
               .from(SupabaseConfig.tableStockHistory)
@@ -364,13 +383,15 @@ class UnreturnedItemController extends ChangeNotifier {
                 'item_id': int.parse(item.itemId),
                 'previous_quantity': previousStock,
                 'new_quantity': finalStock,
-                'change_reason': 'Item returned: ${item.itemName} (Reservation ID: ${item.reservationId})',
+                'change_reason':
+                    'Item returned: ${item.itemName} (Reservation ID: ${item.reservationId})',
                 'changed_by': SupabaseService.auth.currentUser?.id,
               });
 
           // Try to get accurate borrower info for audit log
           String auditBorrowerName = item.borrowerName;
-          if (auditBorrowerName == 'Unknown Borrower' || auditBorrowerName.isEmpty) {
+          if (auditBorrowerName == 'Unknown Borrower' ||
+              auditBorrowerName.isEmpty) {
             try {
               // First try to get user info from user_info table
               final userInfo = await SupabaseService.database
@@ -378,13 +399,14 @@ class UnreturnedItemController extends ChangeNotifier {
                   .select('first_name, last_name')
                   .eq('id', borrowerId)
                   .maybeSingle();
-              
+
               if (userInfo != null) {
                 final firstName = userInfo['first_name'] as String? ?? '';
                 final lastName = userInfo['last_name'] as String? ?? '';
                 auditBorrowerName = '$firstName $lastName'.trim();
                 if (auditBorrowerName.isEmpty) {
-                  auditBorrowerName = borrowerId; // Fallback to ID if name is empty
+                  auditBorrowerName =
+                      borrowerId; // Fallback to ID if name is empty
                 }
               } else {
                 // If user not found in user_info, try to get from reservation
@@ -393,7 +415,7 @@ class UnreturnedItemController extends ChangeNotifier {
                     .select('professor')
                     .eq('reservation_id', int.parse(item.reservationId))
                     .maybeSingle();
-                
+
                 if (reservation != null && reservation['professor'] != null) {
                   auditBorrowerName = reservation['professor'].toString();
                 } else {
@@ -419,7 +441,8 @@ class UnreturnedItemController extends ChangeNotifier {
               'quantity_returned': newReturnedQuantity,
               'is_returned': true,
             },
-            description: 'Marked item as returned: ${item.itemName} (Borrower: $auditBorrowerName, Qty: ${item.unreturnedQuantity})',
+            description:
+                'Marked item as returned: ${item.itemName} (Borrower: $auditBorrowerName, Qty: ${item.unreturnedQuantity})',
           );
 
           _unreturnedItems[index] = item.copyWith(
@@ -472,7 +495,11 @@ class UnreturnedItemController extends ChangeNotifier {
     }
   }
 
-  Future<void> returnPartialItem(String detailId, String borrowerId, int quantity) async {
+  Future<void> returnPartialItem(
+    String detailId,
+    String borrowerId,
+    int quantity,
+  ) async {
     try {
       final index = _unreturnedItems.indexWhere(
         (i) => i.detailId == detailId && i.borrowerId == borrowerId,
@@ -486,28 +513,29 @@ class UnreturnedItemController extends ChangeNotifier {
               .select('available_stock, total_stock')
               .eq('asset_id', int.parse(item.itemId))
               .single();
-          
+
           final previousStock = assetResponse['available_stock'] as int? ?? 0;
           final totalStock = assetResponse['total_stock'] as int? ?? 0;
           final newStock = previousStock + quantity;
-          
+
           // Ensure new stock doesn't exceed total stock
           final finalStock = newStock > totalStock ? totalStock : newStock;
-          
+
           await SupabaseService.database
               .from(SupabaseConfig.tableReservationItems)
               .update({
                 'quantity_returned': item.returnedQuantity + quantity,
-                'is_returned': (item.returnedQuantity + quantity) >= item.borrowedQuantity,
+                'is_returned':
+                    (item.returnedQuantity + quantity) >= item.borrowedQuantity,
               })
               .eq('detail_id', int.parse(detailId));
-          
+
           // Update lab asset stock
           await SupabaseService.database
               .from(SupabaseConfig.tableLabAssets)
               .update({'available_stock': finalStock})
               .eq('asset_id', int.parse(item.itemId));
-          
+
           // Log to stock history
           await SupabaseService.database
               .from(SupabaseConfig.tableStockHistory)
@@ -516,13 +544,15 @@ class UnreturnedItemController extends ChangeNotifier {
                 'item_id': int.parse(item.itemId),
                 'previous_quantity': previousStock,
                 'new_quantity': finalStock,
-                'change_reason': 'Partial return: $quantity ${item.itemName} (Reservation ID: ${item.reservationId})',
+                'change_reason':
+                    'Partial return: $quantity ${item.itemName} (Reservation ID: ${item.reservationId})',
                 'changed_by': SupabaseService.auth.currentUser?.id,
               });
 
           // Try to get accurate borrower info for audit log
           String auditBorrowerName = item.borrowerName;
-          if (auditBorrowerName == 'Unknown Borrower' || auditBorrowerName.isEmpty) {
+          if (auditBorrowerName == 'Unknown Borrower' ||
+              auditBorrowerName.isEmpty) {
             try {
               // First try to get user info from user_info table
               final userInfo = await SupabaseService.database
@@ -530,13 +560,14 @@ class UnreturnedItemController extends ChangeNotifier {
                   .select('first_name, last_name')
                   .eq('id', borrowerId)
                   .maybeSingle();
-              
+
               if (userInfo != null) {
                 final firstName = userInfo['first_name'] as String? ?? '';
                 final lastName = userInfo['last_name'] as String? ?? '';
                 auditBorrowerName = '$firstName $lastName'.trim();
                 if (auditBorrowerName.isEmpty) {
-                  auditBorrowerName = borrowerId; // Fallback to ID if name is empty
+                  auditBorrowerName =
+                      borrowerId; // Fallback to ID if name is empty
                 }
               } else {
                 // If user not found in user_info, try to get from reservation
@@ -545,7 +576,7 @@ class UnreturnedItemController extends ChangeNotifier {
                     .select('professor')
                     .eq('reservation_id', int.parse(item.reservationId))
                     .maybeSingle();
-                
+
                 if (reservation != null && reservation['professor'] != null) {
                   auditBorrowerName = reservation['professor'].toString();
                 } else {
@@ -563,13 +594,10 @@ class UnreturnedItemController extends ChangeNotifier {
             actionType: 'PARTIAL_RETURN',
             entityType: 'reservation_item',
             entityId: detailId,
-            oldValues: {
-              'quantity_returned': item.returnedQuantity,
-            },
-            newValues: {
-              'quantity_returned': item.returnedQuantity + quantity,
-            },
-            description: 'Partial return of item: ${item.itemName} (Borrower: $auditBorrowerName, Qty: $quantity)',
+            oldValues: {'quantity_returned': item.returnedQuantity},
+            newValues: {'quantity_returned': item.returnedQuantity + quantity},
+            description:
+                'Partial return of item: ${item.itemName} (Borrower: $auditBorrowerName, Qty: $quantity)',
           );
 
           _unreturnedItems[index] = item.copyWith(

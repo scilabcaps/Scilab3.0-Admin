@@ -1,16 +1,20 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/service/cache_service.dart';
+import '../../shared/reservation_schedule.dart';
 import '../models/professor_reservation_model.dart';
 
 class ProfessorReservationService {
   final SupabaseClient _client = Supabase.instance.client;
-  final CacheService _cache = CacheService();
 
   /// Fetch professor reservations with pagination
-  Future<List<ProfessorReservation>> fetchProfessorReservations({int page = 1, int limit = 20}) async {
+  Future<List<ProfessorReservation>> fetchProfessorReservations({
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
       final start = (page - 1) * limit;
       final end = start + limit - 1;
+      final professorIds = await _loadUserIdsForRole('professor');
+      if (professorIds.isEmpty) return [];
 
       // Fetch paginated reservations first without user_info relation
       // Professor-made reservations are ready for admin review after professor
@@ -34,12 +38,16 @@ class ProfessorReservationService {
             created_at,
             updated_at
           ''')
+          .inFilter('user_id', professorIds)
           .eq('professor_approval', 'Approved')
           .eq('admin_approval', 'Pending')
           .order('created_at', ascending: false)
+          .order('reservation_id', ascending: false)
           .range(start, end);
 
-      print('Fetched ${reservationsResponse.length} reservations from database');
+      print(
+        'Fetched ${reservationsResponse.length} reservations from database',
+      );
 
       // Fetch reservation items with asset info
       final reservationIds = reservationsResponse
@@ -97,7 +105,10 @@ class ProfessorReservationService {
       }
 
       // Fetch user info for all users
-      final userIds = reservationsResponse.map((r) => r['user_id'] as String).toSet().toList();
+      final userIds = reservationsResponse
+          .map((r) => r['user_id'] as String)
+          .toSet()
+          .toList();
       final Map<String, Map<String, dynamic>> userInfoMap = {};
       if (userIds.isNotEmpty) {
         final usersResponse = await _client
@@ -167,62 +178,76 @@ class ProfessorReservationService {
         }
 
         // Chemicals
-        if (chemicalsMap.containsKey(reservationId) && chemicalsMap[reservationId]!.isNotEmpty) {
+        if (chemicalsMap.containsKey(reservationId) &&
+            chemicalsMap[reservationId]!.isNotEmpty) {
           final chems = chemicalsMap[reservationId]!;
-          final chemList = chems.map((chem) {
-            final chemical = chem['chemicals'];
-            if (chemical != null) {
-              final name = chemical['chemical_name'] ?? '';
-              final qty = chem['quantity_used'] ?? '';
-              final unit = chem['unit'] ?? '';
-              return '$name $qty$unit'.trim();
-            }
-            return '';
-          }).where((s) => s.isNotEmpty).join(', ');
+          final chemList = chems
+              .map((chem) {
+                final chemical = chem['chemicals'];
+                if (chemical != null) {
+                  final name = chemical['chemical_name'] ?? '';
+                  final qty = chem['quantity_used'] ?? '';
+                  final unit = chem['unit'] ?? '';
+                  return '$name $qty$unit'.trim();
+                }
+                return '';
+              })
+              .where((s) => s.isNotEmpty)
+              .join(', ');
           if (chemList.isNotEmpty) {
             resourceParts.add('Chemicals: $chemList');
           }
         }
 
         // Items/Assets
-        if (itemsMap.containsKey(reservationId) && itemsMap[reservationId]!.isNotEmpty) {
+        if (itemsMap.containsKey(reservationId) &&
+            itemsMap[reservationId]!.isNotEmpty) {
           final items = itemsMap[reservationId]!;
-          final itemList = items.map((item) {
-            final asset = item['lab_assets'];
-            if (asset != null) {
-              final itemName = asset['item_name'] ?? '';
-              final quantity = item['quantity_borrowed'] ?? 0;
-              return '$itemName x$quantity';
-            }
-            return '';
-          }).where((s) => s.isNotEmpty).join(', ');
+          final itemList = items
+              .map((item) {
+                final asset = item['lab_assets'];
+                if (asset != null) {
+                  final itemName = asset['item_name'] ?? '';
+                  final quantity = item['quantity_borrowed'] ?? 0;
+                  return '$itemName x$quantity';
+                }
+                return '';
+              })
+              .where((s) => s.isNotEmpty)
+              .join(', ');
           if (itemList.isNotEmpty) {
             resourceParts.add('Items: $itemList');
           }
         }
 
-        String resources = resourceParts.isEmpty ? '' : resourceParts.join('\n');
+        String resources = resourceParts.isEmpty
+            ? ''
+            : resourceParts.join('\n');
 
         // Format last updated
         final updatedAt = reservation['updated_at'];
         final formattedLastUpdated = _formatDate(updatedAt);
 
-        final profApproval = reservation['professor_approval']?.toString() ?? 'Pending';
+        final profApproval =
+            reservation['professor_approval']?.toString() ?? 'Pending';
         print('Reservation $reservationId: professor_approval=$profApproval');
 
-        reservations.add(ProfessorReservation(
-          reservationId: reservationId.toString(),
-          roomId: reservation['room_id']?.toString(),
-          professorName: professorName,
-          date: formattedDate,
-          time: formattedTime,
-          resources: resources,
-          additionalNote: reservation['additional_note']?.toString() ?? '',
-          professorApproval: profApproval,
-          adminApproval: reservation['admin_approval']?.toString() ?? 'Pending',
-          status: reservation['status']?.toString() ?? 'Pending',
-          lastUpdated: formattedLastUpdated,
-        ));
+        reservations.add(
+          ProfessorReservation(
+            reservationId: reservationId.toString(),
+            roomId: reservation['room_id']?.toString(),
+            professorName: professorName,
+            date: formattedDate,
+            time: formattedTime,
+            resources: resources,
+            additionalNote: reservation['additional_note']?.toString() ?? '',
+            professorApproval: profApproval,
+            adminApproval:
+                reservation['admin_approval']?.toString() ?? 'Pending',
+            status: reservation['admin_approval']?.toString() ?? 'Pending',
+            lastUpdated: formattedLastUpdated,
+          ),
+        );
       }
 
       print('Mapped ${reservations.length} professor reservations');
@@ -241,24 +266,22 @@ class ProfessorReservationService {
           .update({'status': status})
           .eq('room_id', roomId);
 
-      // Clear rooms cache
-      await _cache.remove('rooms_list');
     } catch (e) {
       throw Exception('Failed to update room status: $e');
     }
   }
 
   /// Update professor approval status
-  Future<void> updateProfessorApproval(int reservationId, String approval) async {
+  Future<void> updateProfessorApproval(
+    int reservationId,
+    String approval,
+  ) async {
     try {
       await _client
           .from('reservations')
           .update({'professor_approval': approval})
           .eq('reservation_id', reservationId);
 
-      // Clear dashboard cache since this affects stats
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to update professor approval: $e');
     }
@@ -267,9 +290,12 @@ class ProfessorReservationService {
   /// Count total professor reservations (for pagination)
   Future<int> countProfessorReservations() async {
     try {
+      final professorIds = await _loadUserIdsForRole('professor');
+      if (professorIds.isEmpty) return 0;
       final response = await _client
           .from('reservations')
           .select('reservation_id')
+          .inFilter('user_id', professorIds)
           .eq('professor_approval', 'Approved')
           .eq('admin_approval', 'Pending')
           .count();
@@ -280,20 +306,37 @@ class ProfessorReservationService {
     }
   }
 
-  /// Approve reservation: admin_approval = 'Approved', status = 'Ongoing'
-  Future<void> approveReservation(int reservationId) async {
+  Future<List<String>> _loadUserIdsForRole(String role) async {
+    final response = await _client
+        .from('user_info')
+        .select('id')
+        .eq('role', role);
+    return response.map<String>((row) => row['id'].toString()).toList();
+  }
+
+  /// Approve reservation and align status with its current schedule phase.
+  Future<String> approveReservation(int reservationId) async {
     try {
+      final reservation = await _client
+          .from('reservations')
+          .select('reservation_date, start_time, end_time')
+          .eq('reservation_id', reservationId)
+          .single();
+      final resultingStatus = ReservationSchedule.approvedStatus(
+        reservationDate: reservation['reservation_date'],
+        startTime: reservation['start_time'],
+        endTime: reservation['end_time'],
+      );
       await _client
           .from('reservations')
           .update({
             'admin_approval': 'Approved',
-            'status': 'Ongoing',
+            'status': resultingStatus,
             'approved_at': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('reservation_id', reservationId);
 
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_recent_activities');
+      return resultingStatus;
     } catch (e) {
       throw Exception('Failed to approve reservation: $e');
     }
@@ -304,14 +347,9 @@ class ProfessorReservationService {
     try {
       await _client
           .from('reservations')
-          .update({
-            'admin_approval': 'Declined',
-            'status': 'Declined',
-          })
+          .update({'admin_approval': 'Declined', 'status': 'Declined'})
           .eq('reservation_id', reservationId);
 
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to reject reservation: $e');
     }

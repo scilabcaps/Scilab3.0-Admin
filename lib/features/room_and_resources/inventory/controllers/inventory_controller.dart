@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import '../models/inventory_model.dart';
 import '../../../../core/api/supabase_client.dart';
 import '../../../../core/api/supabase_config.dart';
-import '../../../../core/service/cache_service.dart';
 import '../../../audit/services/audit_service.dart';
 
 class InventoryController extends ChangeNotifier {
   List<InventoryItem> _inventoryItems = [];
+  bool _isLoading = false;
   String _selectedTab = 'chemicals';
   String _searchTerm = '';
-  final CacheService _cache = CacheService();
   final AuditService _auditService = AuditService();
 
   List<InventoryItem> get inventoryItems => _inventoryItems;
   String get selectedTab => _selectedTab;
   String get searchTerm => _searchTerm;
+  bool get isLoading => _isLoading;
 
   List<InventoryItem> get filteredItems {
     return _inventoryItems.where((item) {
@@ -24,22 +24,16 @@ class InventoryController extends ChangeNotifier {
         'glassware' => item.category.toLowerCase() == 'glassware',
         _ => true,
       };
-      final matchesSearch = item.itemName.toLowerCase().contains(_searchTerm.toLowerCase());
+      final matchesSearch = item.itemName.toLowerCase().contains(
+        _searchTerm.toLowerCase(),
+      );
       return matchesCategory && matchesSearch;
     }).toList();
   }
 
   Future<void> loadInventory() async {
-    final cacheKey = 'inventory_items';
-    
-    // Try to get from cache first
-    final cachedItems = _cache.get<List<Map<String, dynamic>>>(cacheKey);
-    if (cachedItems != null) {
-      _inventoryItems = cachedItems.map((data) => InventoryItem.fromJson(data)).toList();
-      notifyListeners();
-      return;
-    }
-
+    _isLoading = true;
+    notifyListeners();
     try {
       final chemicalsResponse = await SupabaseService.database
           .from(SupabaseConfig.tableChemicals)
@@ -64,11 +58,12 @@ class InventoryController extends ChangeNotifier {
       _inventoryItems = items;
       notifyListeners();
 
-      // Cache the result with 30 minute TTL (inventory changes slowly)
-      await _cache.set(cacheKey, items.map((item) => item.toJson()).toList(), ttlMinutes: 30);
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       debugPrint('Error loading inventory: $e');
       _inventoryItems = _getMockInventory();
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -133,23 +128,35 @@ class InventoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateStock(String itemId, String category, num newQuantity) async {
-    debugPrint('updateStock called: itemId=$itemId, category=$category, newQuantity=$newQuantity');
+  Future<void> updateStock(
+    String itemId,
+    String category,
+    num newQuantity,
+  ) async {
+    debugPrint(
+      'updateStock called: itemId=$itemId, category=$category, newQuantity=$newQuantity',
+    );
     debugPrint('Current inventory items count: ${_inventoryItems.length}');
-    
+
     // Find item by matching both itemId AND category to avoid ID conflicts
-    final index = _inventoryItems.indexWhere((i) => i.itemId == itemId && i.category.toLowerCase() == category.toLowerCase());
+    final index = _inventoryItems.indexWhere(
+      (i) =>
+          i.itemId == itemId &&
+          i.category.toLowerCase() == category.toLowerCase(),
+    );
     debugPrint('Item index found by itemId and category: $index');
-    
+
     if (index == -1) {
-      debugPrint('Item not found in inventory list with itemId=$itemId and category=$category');
+      debugPrint(
+        'Item not found in inventory list with itemId=$itemId and category=$category',
+      );
       return;
     }
-    
+
     final item = _inventoryItems[index];
     final oldQuantity = item.quantity;
     debugPrint('Item found: ${item.itemName}, category: ${item.category}');
-      
+
     try {
       // Determine which table to update based on category
       if (item.category.toLowerCase() == 'chemical') {
@@ -160,7 +167,9 @@ class InventoryController extends ChangeNotifier {
             .eq('chemical_id', int.parse(itemId));
         debugPrint('Chemicals update successful');
       } else {
-        debugPrint('Updating lab_assets: itemId=$itemId, category=${item.category}, newQuantity=$newQuantity');
+        debugPrint(
+          'Updating lab_assets: itemId=$itemId, category=${item.category}, newQuantity=$newQuantity',
+        );
         await SupabaseService.database
             .from(SupabaseConfig.tableLabAssets)
             .update({
@@ -180,10 +189,6 @@ class InventoryController extends ChangeNotifier {
       notifyListeners();
       debugPrint('Local state updated and listeners notified');
 
-      // Clear cache after stock update to ensure consistency
-      await _cache.remove('inventory_items');
-      debugPrint('Inventory cache cleared after stock update');
-
       // Log audit action for manual stock adjustment
       await _auditService.logAction(
         actionType: 'UPDATE',
@@ -191,7 +196,8 @@ class InventoryController extends ChangeNotifier {
         entityId: itemId,
         oldValues: {'quantity': oldQuantity},
         newValues: {'quantity': newQuantity},
-        description: 'Manual stock adjustment for ${item.itemName}: $oldQuantity → $newQuantity',
+        description:
+            'Manual stock adjustment for ${item.itemName}: $oldQuantity → $newQuantity',
       );
     } catch (e) {
       debugPrint('Error updating stock: $e');
@@ -270,9 +276,6 @@ class InventoryController extends ChangeNotifier {
       }
 
       notifyListeners();
-
-      // Clear cache after adding an asset to ensure consistency
-      await _cache.remove('inventory_items');
     } catch (e) {
       debugPrint('Error adding asset: $e');
       rethrow;
@@ -286,13 +289,18 @@ class InventoryController extends ChangeNotifier {
     num? quantity,
     String? formula,
     String? unit,
-    String? expiration,
     String? conditionNotes,
   }) async {
     try {
-      final index = _inventoryItems.indexWhere((i) => i.itemId == itemId && i.category.toLowerCase() == category.toLowerCase());
+      final index = _inventoryItems.indexWhere(
+        (i) =>
+            i.itemId == itemId &&
+            i.category.toLowerCase() == category.toLowerCase(),
+      );
       if (index == -1) {
-        debugPrint('Item not found in inventory list with itemId=$itemId and category=$category');
+        debugPrint(
+          'Item not found in inventory list with itemId=$itemId and category=$category',
+        );
         return;
       }
 
@@ -304,7 +312,6 @@ class InventoryController extends ChangeNotifier {
         if (quantity != null) updateData['stock_quantity'] = quantity;
         if (formula != null) updateData['formula'] = formula;
         if (unit != null) updateData['unit'] = unit;
-        if (expiration != null) updateData['expiration'] = expiration;
 
         await SupabaseService.database
             .from(SupabaseConfig.tableChemicals)
@@ -317,7 +324,9 @@ class InventoryController extends ChangeNotifier {
           updateData['available_stock'] = quantity;
           updateData['total_stock'] = quantity;
         }
-        if (conditionNotes != null) updateData['condition_notes'] = conditionNotes;
+        if (conditionNotes != null) {
+          updateData['condition_notes'] = conditionNotes;
+        }
 
         await SupabaseService.database
             .from(SupabaseConfig.tableLabAssets)
@@ -328,18 +337,16 @@ class InventoryController extends ChangeNotifier {
       _inventoryItems[index] = item.copyWith(
         itemName: itemName,
         quantity: quantity ?? item.quantity,
-        stockLevel: quantity != null ? _calculateStockLevel(quantity) : item.stockLevel,
+        stockLevel: quantity != null
+            ? _calculateStockLevel(quantity)
+            : item.stockLevel,
         status: quantity == 0 ? 'Out of Stock' : 'Available',
         totalStock: quantity,
         formula: formula,
         unit: unit,
-        expiration: expiration,
         conditionNotes: conditionNotes,
       );
       notifyListeners();
-
-      // Clear cache after editing an asset to ensure consistency
-      await _cache.remove('inventory_items');
     } catch (e) {
       debugPrint('Error editing asset: $e');
       rethrow;
@@ -348,14 +355,22 @@ class InventoryController extends ChangeNotifier {
 
   Future<void> deleteAsset(String itemId, String category) async {
     try {
-      final index = _inventoryItems.indexWhere((i) => i.itemId == itemId && i.category.toLowerCase() == category.toLowerCase());
+      final index = _inventoryItems.indexWhere(
+        (i) =>
+            i.itemId == itemId &&
+            i.category.toLowerCase() == category.toLowerCase(),
+      );
       if (index == -1) {
-        debugPrint('Item not found in inventory list with itemId=$itemId and category=$category');
+        debugPrint(
+          'Item not found in inventory list with itemId=$itemId and category=$category',
+        );
         return;
       }
 
       final item = _inventoryItems[index];
-      final entityType = category.toLowerCase() == 'chemical' ? 'chemical' : 'asset';
+      final entityType = category.toLowerCase() == 'chemical'
+          ? 'chemical'
+          : 'asset';
 
       if (category.toLowerCase() == 'chemical') {
         await SupabaseService.database
@@ -384,9 +399,6 @@ class InventoryController extends ChangeNotifier {
 
       _inventoryItems.removeAt(index);
       notifyListeners();
-
-      // Clear cache after deleting an asset to ensure consistency
-      await _cache.remove('inventory_items');
     } catch (e) {
       debugPrint('Error deleting asset: $e');
       rethrow;

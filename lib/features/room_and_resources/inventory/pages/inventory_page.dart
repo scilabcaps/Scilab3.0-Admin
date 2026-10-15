@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../../core/utils/table_loading_indicator.dart';
 import '../controllers/inventory_controller.dart';
 import '../models/inventory_model.dart';
+import '../widgets/inventory_add_dialog.dart';
+import '../widgets/inventory_edit_dialog.dart';
+import '../widgets/inventory_stock_dialog.dart';
 import '../widgets/report_dialog.dart';
 
 class InventoryPage extends StatefulWidget {
@@ -14,7 +18,9 @@ class _InventoryPageState extends State<InventoryPage> {
   final InventoryController _controller = InventoryController();
 
   String _formatQuantity(num quantity) {
-    return quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString();
+    return quantity % 1 == 0
+        ? quantity.toInt().toString()
+        : quantity.toString();
   }
 
   String _formatExpiration(String value) {
@@ -25,6 +31,7 @@ class _InventoryPageState extends State<InventoryPage> {
       return value;
     }
   }
+
   TextEditingController searchController = TextEditingController();
 
   @override
@@ -115,9 +122,7 @@ class _InventoryPageState extends State<InventoryPage> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Expanded(
-                  child: _buildInventoryTabs(),
-                ),
+                Expanded(child: _buildInventoryTabs()),
               ],
             ),
           ),
@@ -125,7 +130,6 @@ class _InventoryPageState extends State<InventoryPage> {
       },
     );
   }
-
 
   Widget _buildInventoryTabs() {
     return Column(
@@ -241,6 +245,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Widget _buildTabContent() {
+    if (_controller.isLoading) return const TableLoadingIndicator();
     final tabItems = _controller.filteredItems;
 
     if (tabItems.isEmpty) {
@@ -256,10 +261,7 @@ class _InventoryPageState extends State<InventoryPage> {
             const SizedBox(height: 16),
             Text(
               'No ${_controller.selectedTab.capitalize()} found',
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
         ),
@@ -303,10 +305,7 @@ class _InventoryPageState extends State<InventoryPage> {
                   item.category.toLowerCase() == 'chemical'
                       ? 'Stock: ${_formatQuantity(item.quantity)} ${item.unit ?? 'mL'}'
                       : 'Quantity: ${item.quantity.toInt()} pieces',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
                 if (item.category.toLowerCase() == 'chemical' &&
                     item.expiration != null &&
@@ -346,9 +345,7 @@ class _InventoryPageState extends State<InventoryPage> {
           IconButton(
             onPressed: () => _showDeleteAssetDialog(item),
             icon: const Icon(Icons.delete, size: 20),
-            style: IconButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            style: IconButton.styleFrom(foregroundColor: Colors.red),
           ),
           const SizedBox(width: 12),
           _buildStatusBadge(item.status),
@@ -362,47 +359,16 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _showUpdateStockDialog(InventoryItem item) {
-    final TextEditingController quantityController = TextEditingController(
-      text: _formatQuantity(item.quantity),
-    );
-
-    showDialog(
+    showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Update Stock - ${item.itemName}'),
-        content: TextField(
-          controller: quantityController,
-          keyboardType: TextInputType.numberWithOptions(decimal: item.category.toLowerCase() == 'chemical'),
-          decoration: InputDecoration(
-            labelText: item.category.toLowerCase() == 'chemical'
-                ? 'Amount (${item.unit ?? 'mL'})'
-                : 'Quantity (pieces)',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newQuantity = item.category.toLowerCase() == 'chemical'
-                  ? num.tryParse(quantityController.text)
-                  : int.tryParse(quantityController.text);
-              if (newQuantity != null) {
-                debugPrint('Update button pressed: itemId=${item.itemId}, category=${item.category}, newQuantity=$newQuantity');
-                await _controller.updateStock(item.itemId, item.category, newQuantity);
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF31CB00),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Update'),
-          ),
-        ],
+      builder: (context) => InventoryStockDialog(
+        item: item,
+        onSave: (quantity) async {
+          debugPrint(
+            'Update button pressed: itemId=${item.itemId}, category=${item.category}, newQuantity=$quantity',
+          );
+          await _controller.updateStock(item.itemId, item.category, quantity);
+        },
       ),
     );
   }
@@ -444,324 +410,71 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _showAddAssetDialog() {
-    final nameController = TextEditingController();
-    final quantityController = TextEditingController();
-    final categoryController = TextEditingController(text: 'Chemical');
-    final formulaController = TextEditingController();
-    final unitController = TextEditingController();
-    final conditionController = TextEditingController();
-    DateTime? expirationDate;
-
-    showDialog(
+    showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add New Asset'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: categoryController.text,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'Chemical', child: Text('Chemical')),
-                    DropdownMenuItem(value: 'Equipment', child: Text('Equipment')),
-                    DropdownMenuItem(value: 'Glassware', child: Text('Glassware')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      categoryController.text = value ?? 'Chemical';
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: quantityController,
-                  keyboardType: TextInputType.numberWithOptions(decimal: categoryController.text.toLowerCase() == 'chemical'),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (categoryController.text == 'Chemical') ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: formulaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Formula (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: unitController.text.isEmpty ? 'mL' : unitController.text,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'mL', child: Text('mL')),
-                      DropdownMenuItem(value: 'g', child: Text('g')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        unitController.text = value ?? 'mL';
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().add(const Duration(days: 365)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          expirationDate = picked;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Expiration (Optional)',
-                        border: OutlineInputBorder(),
-                        suffixIcon: Icon(Icons.calendar_today),
-                      ),
-                      child: Text(
-                        expirationDate == null
-                            ? 'Select date'
-                            : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                          color: expirationDate == null ? Colors.grey : Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: conditionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Condition Notes (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ],
+      builder: (context) => InventoryAddDialog(
+        onSave:
+            ({
+              required itemName,
+              required category,
+              required quantity,
+              formula,
+              unit,
+              expiration,
+              conditionNotes,
+            }) => _controller.addAsset(
+              itemName: itemName,
+              category: category,
+              quantity: quantity,
+              formula: formula,
+              unit: unit,
+              expiration: expiration,
+              conditionNotes: conditionNotes,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final quantity = categoryController.text.toLowerCase() == 'chemical'
-                    ? num.tryParse(quantityController.text)
-                    : int.tryParse(quantityController.text);
-                if (name.isNotEmpty && quantity != null) {
-                  final expirationStr = expirationDate == null
-                      ? null
-                      : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}';
-                  await _controller.addAsset(
-                    itemName: name,
-                    category: categoryController.text,
-                    quantity: quantity,
-                    formula: formulaController.text.trim().isEmpty ? null : formulaController.text.trim(),
-                    unit: unitController.text,
-                    expiration: expirationStr,
-                    conditionNotes: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
-                  );
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Asset added successfully'),
-                      backgroundColor: Color(0xFF31CB00),
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF31CB00),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Add'),
-            ),
-          ],
-        ),
       ),
-    );
+    ).then((added) {
+      if (added == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Asset added successfully'),
+            backgroundColor: Color(0xFF31CB00),
+          ),
+        );
+      }
+    });
   }
 
-  void _showEditAssetDialog(InventoryItem item) {
-    final nameController = TextEditingController(text: item.itemName);
-    final quantityController = TextEditingController(text: _formatQuantity(item.quantity));
-    final formulaController = TextEditingController(text: item.formula ?? '');
-    final unitController = TextEditingController(text: item.unit?.isNotEmpty == true ? item.unit : 'mL');
-    final conditionController = TextEditingController(text: item.conditionNotes ?? '');
-    DateTime? expirationDate;
-    if (item.expiration != null && item.expiration!.isNotEmpty && item.expiration != '-') {
-      try {
-        expirationDate = DateTime.parse(item.expiration!);
-      } catch (_) {}
-    }
-
-    showDialog(
+  Future<void> _showEditAssetDialog(InventoryItem item) async {
+    final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Edit Asset'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: quantityController,
-                  keyboardType: TextInputType.numberWithOptions(decimal: item.category.toLowerCase() == 'chemical'),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (item.category.toLowerCase() == 'chemical') ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: formulaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Formula (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: unitController.text.isEmpty ? 'mL' : unitController.text,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'mL', child: Text('mL')),
-                      DropdownMenuItem(value: 'g', child: Text('g')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        unitController.text = value ?? 'mL';
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: expirationDate ?? DateTime.now().add(const Duration(days: 365)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          expirationDate = picked;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Expiration (Optional)',
-                        border: OutlineInputBorder(),
-                        suffixIcon: Icon(Icons.calendar_today),
-                      ),
-                      child: Text(
-                        expirationDate == null
-                            ? 'Select date'
-                            : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                          color: expirationDate == null ? Colors.grey : Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: conditionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Condition Notes (Optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ],
+      builder: (context) => InventoryEditDialog(
+        item: item,
+        onSave:
+            ({
+              required itemName,
+              required quantity,
+              formula,
+              unit,
+              conditionNotes,
+            }) => _controller.editAsset(
+              itemId: item.itemId,
+              category: item.category,
+              itemName: itemName,
+              quantity: quantity,
+              formula: formula,
+              unit: unit,
+              conditionNotes: conditionNotes,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final quantity = item.category.toLowerCase() == 'chemical'
-                    ? num.tryParse(quantityController.text)
-                    : int.tryParse(quantityController.text);
-                if (name.isNotEmpty && quantity != null) {
-                  final expirationStr = expirationDate == null
-                      ? null
-                      : '${expirationDate!.year}-${expirationDate!.month.toString().padLeft(2, '0')}-${expirationDate!.day.toString().padLeft(2, '0')}';
-                  await _controller.editAsset(
-                    itemId: item.itemId,
-                    category: item.category,
-                    itemName: name,
-                    quantity: quantity,
-                    formula: formulaController.text.trim().isEmpty ? null : formulaController.text.trim(),
-                    unit: unitController.text,
-                    expiration: expirationStr,
-                    conditionNotes: conditionController.text.trim().isEmpty ? null : conditionController.text.trim(),
-                  );
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Asset updated successfully'),
-                      backgroundColor: Color(0xFF31CB00),
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF31CB00),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Update'),
-            ),
-          ],
-        ),
       ),
     );
+    if (updated == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Asset updated successfully'),
+          backgroundColor: Color(0xFF31CB00),
+        ),
+      );
+    }
   }
 
   void _showDeleteAssetDialog(InventoryItem item) {

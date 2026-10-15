@@ -7,6 +7,7 @@ class OngoingReservation {
   final String date;
   final String time;
   final String status;
+  final String reservationSource;
   final List<ReservedItem>? items;
   final String? lastUpdated;
 
@@ -19,6 +20,7 @@ class OngoingReservation {
     required this.date,
     required this.time,
     required this.status,
+    this.reservationSource = 'Not recorded',
     this.items,
     this.lastUpdated,
   });
@@ -33,10 +35,11 @@ class OngoingReservation {
       date: json['date'] ?? '',
       time: json['time'] ?? '',
       status: json['status'] ?? 'Ongoing',
+      reservationSource: json['reservation_source'] ?? 'Not recorded',
       items: json['items'] != null
           ? (json['items'] as List)
-              .map((item) => ReservedItem.fromJson(item))
-              .toList()
+                .map((item) => ReservedItem.fromJson(item))
+                .toList()
           : null,
       lastUpdated: json['last_updated'],
     );
@@ -52,6 +55,7 @@ class OngoingReservation {
       'date': date,
       'time': time,
       'status': status,
+      'reservation_source': reservationSource,
       'items': items?.map((item) => item.toJson()).toList(),
       'last_updated': lastUpdated,
     };
@@ -66,6 +70,7 @@ class OngoingReservation {
     String? date,
     String? time,
     String? status,
+    String? reservationSource,
     List<ReservedItem>? items,
     String? lastUpdated,
   }) {
@@ -78,6 +83,7 @@ class OngoingReservation {
       date: date ?? this.date,
       time: time ?? this.time,
       status: status ?? this.status,
+      reservationSource: reservationSource ?? this.reservationSource,
       items: items ?? this.items,
       lastUpdated: lastUpdated ?? this.lastUpdated,
     );

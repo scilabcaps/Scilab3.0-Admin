@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/service/cache_service.dart';
 import '../models/new_reservation_models.dart';
+import '../../shared/reservation_schedule.dart';
 
 abstract class NewReservationGateway {
   Future<List<ReservationAccount>> loadReservationAccounts();
@@ -21,7 +21,6 @@ class NewReservationService implements NewReservationGateway {
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
-  final CacheService _cache = CacheService();
 
   @override
   Future<List<ReservationAccount>> loadReservationAccounts() async {
@@ -214,7 +213,11 @@ class NewReservationService implements NewReservationGateway {
             'professor': professorName,
             'professor_approval': 'Approved',
             'admin_approval': 'Approved',
-            'status': 'Ongoing',
+            'status': ReservationSchedule.approvedStatus(
+              reservationDate: request.date,
+              startTime: minutesToDatabaseTime(request.startMinutes),
+              endTime: minutesToDatabaseTime(request.endMinutes),
+            ),
             'approved_at': DateTime.now().toUtc().toIso8601String(),
             'additional_note': request.additionalNote,
           })
@@ -233,7 +236,7 @@ class NewReservationService implements NewReservationGateway {
               .eq('chemical_id', resource.id)
               .single();
           final original = row['stock_quantity'] as num? ?? 0;
-          if (original < item.quantity) {
+          if (request.inventoryHoldCartId == null && original < item.quantity) {
             throw StateError('${resource.name} no longer has enough stock.');
           }
           await _client.from('chemical_usage').insert({
@@ -245,11 +248,6 @@ class NewReservationService implements NewReservationGateway {
                 ? request.additionalNote
                 : 'Laboratory use',
           });
-          await _client
-              .from('chemicals')
-              .update({'stock_quantity': original - item.quantity})
-              .eq('chemical_id', resource.id);
-          updatedChemicals[resource.id] = original;
         } else {
           final row = await _client
               .from('lab_assets')
@@ -257,7 +255,7 @@ class NewReservationService implements NewReservationGateway {
               .eq('asset_id', resource.id)
               .single();
           final original = row['available_stock'] as num? ?? 0;
-          if (original < item.quantity) {
+          if (request.inventoryHoldCartId == null && original < item.quantity) {
             throw StateError('${resource.name} no longer has enough stock.');
           }
           await _client.from('reservation_items').insert({
@@ -267,17 +265,48 @@ class NewReservationService implements NewReservationGateway {
             'quantity_returned': 0,
             'is_returned': false,
           });
-          await _client
-              .from('lab_assets')
-              .update({'available_stock': original - item.quantity})
-              .eq('asset_id', resource.id);
-          updatedAssets[resource.id] = original;
         }
       }
 
-      await _clearCaches();
+      if (request.inventoryHoldCartId == null) {
+        await _client.rpc(
+          'deduct_reservation_inventory',
+          params: {'p_reservation_id': reservationId},
+        );
+      } else {
+        final expectedItems = request.items
+            .where((item) => item.resource.type != ReservationResourceType.room)
+            .length;
+        final finalized = await _client.rpc(
+          'finalize_inventory_holds',
+          params: {
+            'p_cart_id': request.inventoryHoldCartId,
+            'p_reservation_id': reservationId,
+            'p_expected_items': expectedItems,
+          },
+        );
+        if ((finalized as num?)?.toInt() != expectedItems) {
+          throw StateError('Inventory holds are incomplete. Please try again.');
+        }
+      }
+
       return reservationId;
     } catch (error) {
+      if (request.inventoryHoldCartId != null) {
+        try {
+          if (reservationId != null) {
+            await _client.rpc(
+              'release_inventory_holds_for_reservation',
+              params: {'p_reservation_id': reservationId},
+            );
+          } else {
+            await _client.rpc(
+              'release_all_inventory_holds',
+              params: {'p_cart_id': request.inventoryHoldCartId},
+            );
+          }
+        } catch (_) {}
+      }
       await _rollback(
         reservationId: reservationId,
         assets: updatedAssets,
@@ -299,6 +328,8 @@ class NewReservationService implements NewReservationGateway {
         );
       }
     }
+
+    if (request.inventoryHoldCartId != null) return;
 
     for (final item in request.items) {
       if (item.resource.type == ReservationResourceType.room) continue;
@@ -362,16 +393,6 @@ class NewReservationService implements NewReservationGateway {
     }
   }
 
-  Future<void> _clearCaches() async {
-    for (final key in [
-      'dashboard_stats',
-      'dashboard_recent_activities',
-      'dashboard_borrowed_items',
-    ]) {
-      await _cache.remove(key);
-    }
-  }
-
   int _parseTime(String value) {
     final parts = value.split(':');
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
@@ -382,8 +403,8 @@ class NewReservationService implements NewReservationGateway {
   }
 
   static String _displayName(Map<String, dynamic> row) {
-    final fullName =
-        '${row['first_name'] ?? ''} ${row['last_name'] ?? ''}'.trim();
+    final fullName = '${row['first_name'] ?? ''} ${row['last_name'] ?? ''}'
+        .trim();
     if (fullName.isNotEmpty) return fullName;
     final username = row['username']?.toString() ?? '';
     if (username.isNotEmpty) return username;

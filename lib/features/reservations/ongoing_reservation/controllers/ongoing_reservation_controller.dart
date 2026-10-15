@@ -10,6 +10,7 @@ class OngoingReservationController extends ChangeNotifier {
   final OngoingReservationService _service = OngoingReservationService();
   final AuditService _auditService = AuditService();
   List<OngoingReservation> _reservations = [];
+  bool _isLoading = false;
   String _selectedFilter = 'all';
   int _currentPage = 1;
   int _totalRows = 0;
@@ -21,6 +22,7 @@ class OngoingReservationController extends ChangeNotifier {
   int get totalRows => _totalRows;
   int get limit => _limit;
   int get totalPages => _totalRows > 0 ? (_totalRows / _limit).ceil() : 0;
+  bool get isLoading => _isLoading;
 
   List<OngoingReservation> get filteredReservations {
     switch (_selectedFilter) {
@@ -40,6 +42,8 @@ class OngoingReservationController extends ChangeNotifier {
   int get filteredCount => filteredReservations.length;
 
   Future<void> loadReservations({int? page}) async {
+    _isLoading = true;
+    notifyListeners();
     try {
       if (page != null) _currentPage = page;
       _reservations = await _service.fetchOngoingReservations(
@@ -48,10 +52,12 @@ class OngoingReservationController extends ChangeNotifier {
         upcoming: upcoming,
       );
       _totalRows = await _service.countOngoingReservations(upcoming: upcoming);
+      _isLoading = false;
       notifyListeners();
     } catch (e) {
       _reservations = [];
       _totalRows = 0;
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -68,9 +74,10 @@ class OngoingReservationController extends ChangeNotifier {
   ) async {
     try {
       await _service.updateItemReturn(int.parse(itemId), returnedQuantity);
-      
-      final reservationIndex =
-          _reservations.indexWhere((r) => r.reservationId == reservationId);
+
+      final reservationIndex = _reservations.indexWhere(
+        (r) => r.reservationId == reservationId,
+      );
       if (reservationIndex != -1) {
         final reservation = _reservations[reservationIndex];
         final updatedItems = reservation.items?.map((item) {
@@ -100,7 +107,9 @@ class OngoingReservationController extends ChangeNotifier {
   Future<void> completeReservation(String reservationId) async {
     try {
       await _service.completeReservation(int.parse(reservationId));
-      final index = _reservations.indexWhere((r) => r.reservationId == reservationId);
+      final index = _reservations.indexWhere(
+        (r) => r.reservationId == reservationId,
+      );
       if (index != -1) {
         _reservations.removeAt(index);
         notifyListeners();
@@ -121,15 +130,18 @@ class OngoingReservationController extends ChangeNotifier {
 
   Future<void> returnItem(String reservationId, String itemId) async {
     try {
-      final reservationIndex = _reservations.indexWhere((r) => r.reservationId == reservationId);
+      final reservationIndex = _reservations.indexWhere(
+        (r) => r.reservationId == reservationId,
+      );
       if (reservationIndex != -1) {
         final reservation = _reservations[reservationIndex];
-        final itemIndex = reservation.items?.indexWhere((i) => i.itemId == itemId) ?? -1;
-        
+        final itemIndex =
+            reservation.items?.indexWhere((i) => i.itemId == itemId) ?? -1;
+
         if (itemIndex != -1) {
           final item = reservation.items![itemIndex];
           final unreturnedQuantity = item.quantity - item.returnedQuantity;
-          
+
           if (unreturnedQuantity > 0 && item.assetId.isNotEmpty) {
             await _service.returnItem(
               int.parse(itemId),
@@ -157,7 +169,9 @@ class OngoingReservationController extends ChangeNotifier {
             notifyListeners();
 
             // Check if all items are returned and update reservation status
-            await _service.checkAndUpdateReservationStatus(int.parse(reservationId));
+            await _service.checkAndUpdateReservationStatus(
+              int.parse(reservationId),
+            );
 
             // Log audit action
             await _auditService.logAction(
@@ -168,7 +182,8 @@ class OngoingReservationController extends ChangeNotifier {
                 'quantity_returned': item.quantity,
                 'is_returned': true,
               },
-              description: 'Early return of item: ${item.itemName} (Reservation ID: $reservationId)',
+              description:
+                  'Early return of item: ${item.itemName} (Reservation ID: $reservationId)',
             );
           }
         }
@@ -178,17 +193,24 @@ class OngoingReservationController extends ChangeNotifier {
     }
   }
 
-  Future<void> returnPartialItem(String reservationId, String itemId, int quantity) async {
+  Future<void> returnPartialItem(
+    String reservationId,
+    String itemId,
+    int quantity,
+  ) async {
     try {
-      final reservationIndex = _reservations.indexWhere((r) => r.reservationId == reservationId);
+      final reservationIndex = _reservations.indexWhere(
+        (r) => r.reservationId == reservationId,
+      );
       if (reservationIndex != -1) {
         final reservation = _reservations[reservationIndex];
-        final itemIndex = reservation.items?.indexWhere((i) => i.itemId == itemId) ?? -1;
-        
+        final itemIndex =
+            reservation.items?.indexWhere((i) => i.itemId == itemId) ?? -1;
+
         if (itemIndex != -1) {
           final item = reservation.items![itemIndex];
           final unreturnedQuantity = item.quantity - item.returnedQuantity;
-          
+
           if (quantity <= unreturnedQuantity && item.assetId.isNotEmpty) {
             await _service.returnPartialItem(
               int.parse(itemId),
@@ -220,7 +242,9 @@ class OngoingReservationController extends ChangeNotifier {
             notifyListeners();
 
             // Check if all items are returned and update reservation status
-            await _service.checkAndUpdateReservationStatus(int.parse(reservationId));
+            await _service.checkAndUpdateReservationStatus(
+              int.parse(reservationId),
+            );
 
             // Log audit action
             await _auditService.logAction(
@@ -230,7 +254,8 @@ class OngoingReservationController extends ChangeNotifier {
               newValues: {
                 'quantity_returned': item.returnedQuantity + quantity,
               },
-              description: 'Partial return of $quantity ${item.itemName} (Reservation ID: $reservationId)',
+              description:
+                  'Partial return of $quantity ${item.itemName} (Reservation ID: $reservationId)',
             );
           }
         }

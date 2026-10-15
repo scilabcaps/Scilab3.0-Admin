@@ -1,10 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/service/cache_service.dart';
+import '../../shared/reservation_schedule.dart';
 import '../models/ongoing_reservation_model.dart';
 
 class OngoingReservationService {
   final SupabaseClient _client = Supabase.instance.client;
-  final CacheService _cache = CacheService();
 
   /// Fetch ongoing reservations with pagination
   Future<List<OngoingReservation>> fetchOngoingReservations({
@@ -21,6 +20,7 @@ class OngoingReservationService {
           .select('''
             reservation_id,
             user_id,
+            created_by,
             room_id,
             reservation_date,
             start_time,
@@ -36,18 +36,27 @@ class OngoingReservationService {
             updated_at
           ''')
           .inFilter('status', ['Pending', 'Approved', 'Ongoing'])
+          .eq('professor_approval', 'Approved')
+          .eq('admin_approval', 'Approved')
           .eq('is_deleted', false)
           .order('reservation_date', ascending: true)
           .order('start_time', ascending: true);
 
-      final today = _dateOnly(DateTime.now());
+      final now = DateTime.now();
       final timeFiltered = reservationsResponse.where((reservation) {
-        final reservationDate = DateTime.parse(
-          reservation['reservation_date'].toString(),
-        );
-        return upcoming
-            ? reservationDate.isAfter(today)
-            : _dateOnly(reservationDate) == today;
+        try {
+          final phase = ReservationSchedule.phase(
+            reservationDate: reservation['reservation_date'],
+            startTime: reservation['start_time'],
+            endTime: reservation['end_time'],
+            now: now,
+          );
+          return upcoming
+              ? phase == ReservationSchedulePhase.upcoming
+              : phase == ReservationSchedulePhase.ongoing;
+        } on FormatException {
+          return false;
+        }
       }).toList();
       final start = (page - 1) * limit;
       final pageRows = timeFiltered.skip(start).take(limit).toList();
@@ -128,12 +137,38 @@ class OngoingReservationService {
         }
       }
 
+      final creatorIds = pageRows
+          .map((r) => r['created_by'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final Map<String, Map<String, dynamic>> creatorInfoMap = {};
+      if (creatorIds.isNotEmpty) {
+        final creatorsResponse = await _client
+            .from('user_info')
+            .select('id, role')
+            .inFilter('id', creatorIds);
+        for (final creator in creatorsResponse) {
+          creatorInfoMap[creator['id'] as String] = creator;
+        }
+      }
+
       // Map reservations to OngoingReservation model
       List<OngoingReservation> reservations = [];
       for (var reservation in pageRows) {
         final reservationId = reservation['reservation_id'] as int;
         final userId = reservation['user_id'] as String?;
         final userInfo = userId != null ? userInfoMap[userId] : null;
+        final createdById = reservation['created_by'] as String?;
+        final creatorInfo = createdById == null
+            ? null
+            : creatorInfoMap[createdById];
+        final creatorRole = creatorInfo?['role']?.toString().toLowerCase();
+        final reservationSource = creatorInfo == null
+            ? 'Self Reservation'
+            : creatorRole == 'admin' || creatorRole == 'administrator'
+            ? 'Reserved by Admin'
+            : 'Self Reservation';
 
         // Determine user type and name
         String userType = 'Student';
@@ -253,7 +288,8 @@ class OngoingReservationService {
             professor: userType == 'Student' ? professorName : null,
             date: formattedDate,
             time: formattedTime,
-            status: upcoming ? 'Upcoming' : reservation['status'].toString(),
+            status: upcoming ? 'Upcoming' : 'Ongoing',
+            reservationSource: reservationSource,
             items: items,
             lastUpdated: formattedLastUpdated,
           ),
@@ -276,10 +312,6 @@ class OngoingReservationService {
           .update({'quantity_returned': returnedQuantity})
           .eq('detail_id', detailId);
 
-      // Clear dashboard cache since this affects stats
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_borrowed_items');
-      await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to update item return: $e');
     }
@@ -292,24 +324,29 @@ class OngoingReservationService {
           .from('reservations')
           .select('reservation_date, start_time, end_time')
           .inFilter('status', ['Pending', 'Approved', 'Ongoing'])
+          .eq('professor_approval', 'Approved')
+          .eq('admin_approval', 'Approved')
           .eq('is_deleted', false);
-      final today = _dateOnly(DateTime.now());
+      final now = DateTime.now();
       return response.where((reservation) {
-        final reservationDate = DateTime.parse(
-          reservation['reservation_date'].toString(),
-        );
-        return upcoming
-            ? reservationDate.isAfter(today)
-            : _dateOnly(reservationDate) == today;
+        try {
+          final phase = ReservationSchedule.phase(
+            reservationDate: reservation['reservation_date'],
+            startTime: reservation['start_time'],
+            endTime: reservation['end_time'],
+            now: now,
+          );
+          return upcoming
+              ? phase == ReservationSchedulePhase.upcoming
+              : phase == ReservationSchedulePhase.ongoing;
+        } on FormatException {
+          return false;
+        }
       }).length;
     } catch (e) {
       print('Error counting ongoing reservations: $e');
       return 0;
     }
-  }
-
-  DateTime _dateOnly(DateTime value) {
-    return DateTime(value.year, value.month, value.day);
   }
 
   /// Complete reservation
@@ -320,11 +357,6 @@ class OngoingReservationService {
           .update({'status': 'Completed'})
           .eq('reservation_id', reservationId);
 
-      // Clear dashboard and reservations history cache
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_reservation_trends');
-      await _cache.remove('dashboard_recent_activities');
-      await _cache.remove('reservations_history');
     } catch (e) {
       throw Exception('Failed to complete reservation: $e');
     }
@@ -375,10 +407,6 @@ class OngoingReservationService {
         'changed_by': _client.auth.currentUser?.id,
       });
 
-      // Clear dashboard cache
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_borrowed_items');
-      await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to return item: $e');
     }
@@ -432,10 +460,6 @@ class OngoingReservationService {
         'changed_by': _client.auth.currentUser?.id,
       });
 
-      // Clear dashboard cache
-      await _cache.remove('dashboard_stats');
-      await _cache.remove('dashboard_borrowed_items');
-      await _cache.remove('dashboard_recent_activities');
     } catch (e) {
       throw Exception('Failed to return partial item: $e');
     }
@@ -465,11 +489,6 @@ class OngoingReservationService {
             .update({'status': 'Completed'})
             .eq('reservation_id', reservationId);
 
-        // Clear dashboard cache
-        await _cache.remove('dashboard_stats');
-        await _cache.remove('dashboard_reservation_trends');
-        await _cache.remove('dashboard_recent_activities');
-        await _cache.remove('reservations_history');
       }
     } catch (e) {
       throw Exception('Failed to check and update reservation status: $e');

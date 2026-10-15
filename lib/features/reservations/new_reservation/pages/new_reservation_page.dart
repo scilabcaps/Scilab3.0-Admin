@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../controllers/new_reservation_controller.dart';
@@ -5,22 +7,28 @@ import '../models/new_reservation_models.dart';
 import '../widgets/reservation_review_dialog.dart';
 
 class NewReservationPage extends StatefulWidget {
-  const NewReservationPage({super.key});
+  const NewReservationPage({super.key, this.controller});
+
+  final NewReservationController? controller;
 
   @override
   State<NewReservationPage> createState() => _NewReservationPageState();
 }
+
 class _NewReservationPageState extends State<NewReservationPage> {
   static const Color _primary = Color(0xFF2E7D32);
 
   final _formKey = GlobalKey<FormState>();
   final _noteController = TextEditingController();
   final _timeSlotsScrollController = ScrollController();
-  final _controller = NewReservationController();
+  late final NewReservationController _controller;
+  late final bool _ownsController;
 
   @override
   void initState() {
     super.initState();
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? NewReservationController();
     _controller.loadResources();
   }
 
@@ -28,7 +36,7 @@ class _NewReservationPageState extends State<NewReservationPage> {
   void dispose() {
     _noteController.dispose();
     _timeSlotsScrollController.dispose();
-    _controller.dispose();
+    if (_ownsController) _controller.dispose();
     super.dispose();
   }
 
@@ -141,7 +149,7 @@ class _NewReservationPageState extends State<NewReservationPage> {
                 return Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: _controller.visibleResources
+                  children: _controller.paginatedResources
                       .map(
                         (resource) => SizedBox(
                           width: width,
@@ -158,6 +166,73 @@ class _NewReservationPageState extends State<NewReservationPage> {
                 );
               },
             ),
+          if (_controller.resourcePageCount > 1) ...[
+            const SizedBox(height: 20),
+            _buildResourcePagination(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResourcePagination() {
+    final currentPage = _controller.resourcePage;
+    final totalPages = _controller.resourcePageCount;
+    final buttonStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(112, 44),
+      foregroundColor: _primary,
+      side: BorderSide(color: Colors.grey.shade300),
+    );
+
+    return Semantics(
+      container: true,
+      label: 'Resource pages',
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16,
+        runSpacing: 10,
+        children: [
+          OutlinedButton.icon(
+            key: const Key('resource-page-previous'),
+            onPressed: currentPage > 1
+                ? _controller.previousResourcePage
+                : null,
+            style: buttonStyle,
+            icon: const Icon(Icons.chevron_left),
+            label: const Text('Previous'),
+          ),
+          Semantics(
+            liveRegion: true,
+            label: 'Resource page $currentPage of $totalPages',
+            child: Container(
+              key: const Key('resource-page-status'),
+              constraints: const BoxConstraints(minWidth: 96, minHeight: 44),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Page $currentPage of $totalPages',
+                style: const TextStyle(
+                  color: _primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          OutlinedButton.icon(
+            key: const Key('resource-page-next'),
+            onPressed: currentPage < totalPages
+                ? _controller.nextResourcePage
+                : null,
+            style: buttonStyle,
+            icon: const Icon(Icons.chevron_right),
+            iconAlignment: IconAlignment.end,
+            label: const Text('Next'),
+          ),
         ],
       ),
     );
@@ -228,9 +303,11 @@ class _NewReservationPageState extends State<NewReservationPage> {
                       if (!isRoom) ...[
                         IconButton(
                           tooltip: 'Decrease ${item.resource.name} quantity',
-                          onPressed: () => _controller.changeQuantity(
-                            item.resource.key,
-                            -step,
+                          onPressed: () => unawaited(
+                            _controller.changeQuantityAndHold(
+                              item.resource.key,
+                              -step,
+                            ),
                           ),
                           icon: const Icon(Icons.remove_circle_outline),
                         ),
@@ -250,11 +327,12 @@ class _NewReservationPageState extends State<NewReservationPage> {
                         ),
                         IconButton(
                           tooltip: 'Increase ${item.resource.name} quantity',
-                          onPressed:
-                              item.quantity < item.resource.availableQuantity
-                              ? () => _controller.changeQuantity(
-                                  item.resource.key,
-                                  step,
+                          onPressed: item.resource.availableQuantity > 0
+                              ? () => unawaited(
+                                  _controller.changeQuantityAndHold(
+                                    item.resource.key,
+                                    step,
+                                  ),
                                 )
                               : null,
                           icon: const Icon(Icons.add_circle_outline),
@@ -262,8 +340,11 @@ class _NewReservationPageState extends State<NewReservationPage> {
                       ],
                       IconButton(
                         tooltip: 'Remove ${item.resource.name}',
-                        onPressed: () =>
-                            _controller.removeResource(item.resource.key),
+                        onPressed: () => unawaited(
+                          _controller.removeResourceAndRelease(
+                            item.resource.key,
+                          ),
+                        ),
                         icon: const Icon(
                           Icons.delete_outline,
                           color: Colors.redAccent,
@@ -330,8 +411,7 @@ class _NewReservationPageState extends State<NewReservationPage> {
                     minimumSize: const Size(210, 52),
                   ),
                   icon:
-                      _controller.isSubmitting ||
-                          _controller.isLoadingAccounts
+                      _controller.isSubmitting || _controller.isLoadingAccounts
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -567,13 +647,19 @@ class _NewReservationPageState extends State<NewReservationPage> {
   }
 
   void _addResource(ReservationResource resource) {
-    final added = _controller.addResource(resource);
+    unawaited(_addResourceAsync(resource));
+  }
+
+  Future<void> _addResourceAsync(ReservationResource resource) async {
+    final added = await _controller.addResourceAndHold(resource);
     if (!added) {
+      if (!mounted) return;
       _showMessage(
         '${resource.name} has reached its available quantity.',
         isError: true,
       );
     } else if (resource.type == ReservationResourceType.room) {
+      if (!mounted) return;
       _showMessage(
         '${resource.name} selected. Any previously selected room was replaced.',
       );
@@ -679,6 +765,7 @@ class _NewReservationPageState extends State<NewReservationPage> {
     return '${months[value.month - 1]} ${value.day}, ${value.year}';
   }
 }
+
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.title,

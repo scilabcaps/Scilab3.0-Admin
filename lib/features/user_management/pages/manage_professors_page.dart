@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../services/user_account_export_service.dart';
 import '../services/user_account_file_writer.dart';
 import '../../../core/utils/app_dialog.dart';
+import '../../../core/utils/table_loading_indicator.dart';
 
 class ManageProfessorsPage extends StatefulWidget {
   const ManageProfessorsPage({super.key});
@@ -23,7 +24,7 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isCreating = false;
@@ -38,12 +39,12 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         : _currentPage.clamp(1, _totalPages) as int;
     final start = (page - 1) * _pageSize;
     if (start >= _controller.professors.length) return const [];
-    final end = (start + _pageSize).clamp(0, _controller.professors.length) as int;
+    final end =
+        (start + _pageSize).clamp(0, _controller.professors.length) as int;
     return _controller.professors.sublist(start, end);
   }
 
-  int get _totalPages =>
-      (_controller.professors.length / _pageSize).ceil();
+  int get _totalPages => (_controller.professors.length / _pageSize).ceil();
 
   @override
   void initState() {
@@ -70,17 +71,23 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
     try {
       final users = _controller.professors;
       if (users.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No professor accounts found.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No professor accounts found.')),
+        );
         return;
       }
       final exporter = UserAccountExportService();
       final bytes = format == 'xlsx'
           ? exporter.generateExcel(
-              users: users, role: 'Professor', generatedAt: generatedAt)
+              users: users,
+              role: 'Professor',
+              generatedAt: generatedAt,
+            )
           : await exporter.generatePdf(
-              users: users, role: 'Professor', generatedAt: generatedAt);
+              users: users,
+              role: 'Professor',
+              generatedAt: generatedAt,
+            );
       if (!mounted) return;
       final stamp = generatedAt.toIso8601String().replaceAll(':', '-');
       final path = await FilePicker.platform.saveFile(
@@ -92,9 +99,11 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
       );
       if (kIsWeb) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Download started: ${users.length} accounts.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download started: ${users.length} accounts.'),
+          ),
+        );
         return;
       }
       if (path == null) return;
@@ -104,15 +113,17 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         await writeUserAccountFile(path, bytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Saved ${users.length} accounts to $path'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved ${users.length} accounts to $path')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not generate report: $error'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -144,12 +155,12 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                 ],
               ),
               const SizedBox(height: 32),
-              
+
               // Create New Professor Account Section
               _buildCreateProfessorSection(theme),
-              
+
               const SizedBox(height: 40),
-              
+
               // Existing Professors Section
               _buildExistingProfessorsSection(theme),
             ],
@@ -171,9 +182,7 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: _isExporting
-              ? Colors.grey.shade200
-              : const Color(0xFF31CB00),
+          color: _isExporting ? Colors.grey.shade200 : const Color(0xFF31CB00),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -187,10 +196,13 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                   )
                 : const Icon(Icons.download, size: 20, color: Colors.white),
             const SizedBox(width: 8),
-            Text(_isExporting ? 'Generating report...' : 'Generate Report',
-                style: TextStyle(
-                    color: _isExporting ? Colors.grey.shade700 : Colors.white,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              _isExporting ? 'Generating report...' : 'Generate Report',
+              style: TextStyle(
+                color: _isExporting ? Colors.grey.shade700 : Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -321,7 +333,9 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(
@@ -359,7 +373,10 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
       keyboardType: keyboardType,
       validator: validator,
@@ -388,7 +405,10 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
       validator: _controller.validatePassword,
     );
@@ -427,13 +447,17 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   }
 
   Widget _buildProfessorsTable(ThemeData theme) {
+    if (_controller.isLoading) return const TableLoadingIndicator();
+
     return Column(
       children: [
         _buildTableHeader(theme),
         if (_controller.professors.isEmpty)
           _buildEmptyState()
         else
-          ..._visibleProfessors.map((professor) => _buildProfessorRow(professor, theme)),
+          ..._visibleProfessors.map(
+            (professor) => _buildProfessorRow(professor, theme),
+          ),
         if (_totalPages > 1) _buildAccountPagination(),
       ],
     );
@@ -489,9 +513,39 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 4, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 4, child: Text('Email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
-          Expanded(flex: 2, child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))),
+          Expanded(
+            flex: 4,
+            child: Text(
+              'Name',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              'Email',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -509,11 +563,7 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.person_outline,
-            size: 64,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.person_outline, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
             'No professors found',
@@ -572,7 +622,8 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                       final confirmed = await AppDialog.showConfirmDialog(
                         context: context,
                         title: 'Unban User',
-                        content: 'Are you sure you want to unban ${professor.fullName}?',
+                        content:
+                            'Are you sure you want to unban ${professor.fullName}?',
                         icon: Icons.restore,
                         confirmColor: Colors.green,
                       );
@@ -583,7 +634,8 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                       final confirmed = await AppDialog.showConfirmDialog(
                         context: context,
                         title: 'Ban User',
-                        content: 'Are you sure you want to ban ${professor.fullName}?',
+                        content:
+                            'Are you sure you want to ban ${professor.fullName}?',
                         icon: Icons.block,
                         confirmColor: Colors.red,
                       );
@@ -607,11 +659,11 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
         _passwordController.text,
         _confirmPasswordController.text,
       );
-      
+
       if (passwordMatchError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(passwordMatchError)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(passwordMatchError)));
         return;
       }
 
@@ -634,7 +686,9 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Professor account created successfully')),
+          const SnackBar(
+            content: Text('Professor account created successfully'),
+          ),
         );
 
         // Clear form
@@ -650,10 +704,16 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
   }
 
   void _showEditDialog(User professor) {
-    final editFirstNameController = TextEditingController(text: professor.firstName);
-    final editLastNameController = TextEditingController(text: professor.lastName);
+    final editFirstNameController = TextEditingController(
+      text: professor.firstName,
+    );
+    final editLastNameController = TextEditingController(
+      text: professor.lastName,
+    );
     final editEmailController = TextEditingController(text: professor.email);
-    final editPhoneController = TextEditingController(text: professor.phone ?? '');
+    final editPhoneController = TextEditingController(
+      text: professor.phone ?? '',
+    );
     final editFormKey = GlobalKey<FormState>();
 
     showDialog(
@@ -742,7 +802,9 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                               : editPhoneController.text,
                         );
 
-                        final success = await _controller.updateUser(updatedUser);
+                        final success = await _controller.updateUser(
+                          updatedUser,
+                        );
 
                         setState(() {
                           _isUpdating = false;
@@ -751,11 +813,15 @@ class _ManageProfessorsPageState extends State<ManageProfessorsPage> {
                         if (success) {
                           Navigator.of(context).pop();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Professor updated successfully')),
+                            const SnackBar(
+                              content: Text('Professor updated successfully'),
+                            ),
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to update professor')),
+                            const SnackBar(
+                              content: Text('Failed to update professor'),
+                            ),
                           );
                         }
                       }
